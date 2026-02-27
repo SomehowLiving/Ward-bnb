@@ -1,0 +1,83 @@
+{
+  "abi": [
+    {
+      "type": "function",
+      "name": "positions",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "outputs": [
+        { "name": "deposited", "type": "uint256", "internalType": "uint256" },
+        { "name": "borrowed", "type": "uint256", "internalType": "uint256" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "availableCredit",
+      "stateMutability": "view",
+      "inputs": [{ "name": "user", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }]
+    },
+    {
+      "type": "function",
+      "name": "creditPositions",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+      "outputs": [
+        { "name": "amount", "type": "uint256", "internalType": "uint256" },
+        { "name": "dueDate", "type": "uint256", "internalType": "uint256" },
+        { "name": "repaid", "type": "bool", "internalType": "bool" },
+        { "name": "pocket", "type": "address", "internalType": "address" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "creditBorrower",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "requestCredit",
+      "stateMutability": "nonpayable",
+      "inputs": [
+        { "name": "merchant", "type": "address", "internalType": "address" },
+        { "name": "amount", "type": "uint256", "internalType": "uint256" },
+        { "name": "duration", "type": "uint256", "internalType": "uint256" },
+        { "name": "salt", "type": "uint256", "internalType": "uint256" }
+      ],
+      "outputs": [
+        { "name": "requestId", "type": "bytes32", "internalType": "bytes32" },
+        { "name": "pocket", "type": "address", "internalType": "address" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "repay",
+      "stateMutability": "payable",
+      "inputs": [{ "name": "requestId", "type": "bytes32", "internalType": "bytes32" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "liquidate",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "requestId", "type": "bytes32", "internalType": "bytes32" }],
+      "outputs": []
+    },
+    {
+      "type": "event",
+      "name": "CreditRequested",
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "name": "requestId", "type": "bytes32", "internalType": "bytes32" },
+        { "indexed": true, "name": "user", "type": "address", "internalType": "address" },
+        { "indexed": true, "name": "merchant", "type": "address", "internalType": "address" },
+        { "indexed": false, "name": "pocket", "type": "address", "internalType": "address" },
+        { "indexed": false, "name": "amount", "type": "uint256", "internalType": "uint256" },
+        { "indexed": false, "name": "dueDate", "type": "uint256", "internalType": "uint256" }
+      ]
+    }
+  ]
+}

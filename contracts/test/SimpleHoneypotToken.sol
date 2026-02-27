@@ -12,11 +12,11 @@ import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
  * WHAT IT ALLOWS:
  * - Anyone to call `claimAirdrop()` and receive 1000 FAKE tokens (free minting to msg.sender)
  * - Initial deployer to receive 1,000,000 FAKE tokens in constructor
- * - Burning tokens (transfer to zero address) is implicitly allowed by _beforeTokenTransfer logic
+ * - Burning tokens (transfer to zero address) is blocked by honeypot logic
  * 
  * WHAT IT DISALLOW (Honeypot Logic):
  * - ALL token transfers between non-zero addresses are permanently blocked
- * - `_beforeTokenTransfer()` reverts with "HONEYPOT: Cannot transfer" for any transfer attempt
+ * - `_update()` reverts with "HONEYPOT: Cannot transfer" for any transfer attempt
  * - Tokens cannot be traded, sold, or sent to other wallets
  * - Approvals are meaningless since transfers will always revert
  * 
@@ -42,9 +42,12 @@ contract SimpleHoneypotToken is ERC20 {
     }
     
     /// @notice Blocks ALL transfers between addresses (honeypot trap)
-    function _beforeTokenTransfer(address from, address, uint256) internal pure override {
-        // Allow minting (from == 0) and burning (to == 0)
-        if (from == address(0)) return;
+    function _update(address from, address to, uint256 value) internal override {
+        // Allow minting only (from == 0)
+        if (from == address(0)) {
+            super._update(from, to, value);
+            return;
+        }
         revert("HONEYPOT: Cannot transfer");
     }
 }

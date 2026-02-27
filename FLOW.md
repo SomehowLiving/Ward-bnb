@@ -112,3 +112,54 @@ flowchart TB
     P -- Post execution --> C
     C --> S1["Drained - Loss Capped to Pocket"] & S2["Safe Token - Auto Sweep to Main Wallet"] & S3["Uncertain Token - Await User Decision"] & S4["Toxic Token - Burn Pocket"]
 ```
+---
+
+# User Journey:
+
+```mermaid
+flowchart TB
+    U[User EOA] -->|Deposit BNB| V[CollateralVault]
+    V -->|Compute LTV| C[Credit Capacity]
+    U -->|Request Credit| V
+    V -->|Create Pocket| PC[PocketController]
+    PC --> P[Pocket]
+    P --> M[Merchant Contract]
+    M --> P
+    U -->|Repay| V
+
+```
+---
+
+# System Architecture:
+
+```mermaid
+┌──────────────────────────────┐
+│        User Wallet           │
+└──────────────┬───────────────┘
+               │ deposit
+               ▼
+┌──────────────────────────────┐
+│      Collateral Vault        │
+│ - Tracks LTV                 │
+│ - Locks credit               │
+│ - Handles default            │
+└──────────────┬───────────────┘
+               │ allocate
+               ▼
+┌──────────────────────────────┐
+│      PocketController        │
+│ - CREATE2 deploy             │
+│ - Fund gas reserve           │
+└──────────────┬───────────────┘
+               ▼
+┌──────────────────────────────┐
+│          Pocket              │
+│ - Single-use                 │
+│ - EIP-712 verify             │
+│ - target.call()              │
+└──────────────┬───────────────┘
+               ▼
+┌──────────────────────────────┐
+│        Merchant              │
+└──────────────────────────────┘
+```

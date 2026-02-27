@@ -22,9 +22,8 @@ const PocketABI = PocketArtifact.abi;
 const PocketBytecode = PocketArtifact?.bytecode?.object;
 const PocketFactoryABI = PocketFactoryArtifact.abi;
 
-import { decodeEthersError, parseRevertReason } from "../utils/errors.js";
+import { decodeEthersError } from "../utils/errors.js";
 import { requireAddress, ValidationError } from "../utils/validate.js";
-import { fetchRiskTier } from "../utils/risk.js";
 import { pocketRegistry } from "../utils/pocketRegistry.js";
 import { backfillPocketCreatedBlocks } from "../utils/backfillPocketCreatedBlocks.js";
 
@@ -92,41 +91,6 @@ const ERC20_MIN_ABI = [
     "function decimals() view returns (uint8)",
     "function balanceOf(address) view returns (uint256)"
 ];
-const ERC20_AMOUNT_ABI = [
-    "function decimals() view returns (uint8)",
-    "function symbol() view returns (string)"
-];
-
-async function resolveTokenAmount(tokenAddress, amountInput) {
-    const value = String(amountInput ?? "").trim();
-    if (!value) throw new ValidationError("amount is required");
-    const token = new ethers.Contract(tokenAddress, ERC20_AMOUNT_ABI, provider);
-
-    let decimals;
-    try {
-        decimals = Number(await token.decimals());
-    } catch {
-        throw new ValidationError("Token does not expose decimals()");
-    }
-
-    if (!Number.isFinite(decimals) || decimals < 0 || decimals > 255) {
-        throw new ValidationError("Invalid token decimals");
-    }
-
-    try {
-        const amountBaseUnits = ethers.parseUnits(value, decimals);
-        const symbol = await token.symbol().catch(() => "TOKEN");
-        return {
-            decimals,
-            symbol,
-            amountHuman: value,
-            amountBaseUnits
-        };
-    } catch {
-        throw new ValidationError(`Invalid token amount for ${decimals} decimals`);
-    }
-}
-
 async function findPocketDeployedBlock(receipt, expectedPocket) {
     const expected = ethers.getAddress(expectedPocket);
     const factoryAddress = ethers.getAddress(await controller.factory());
@@ -440,6 +404,49 @@ router.post("/exec", async (req, res) => {
     }
 });
 
+router.post("/execute", async (req, res) => {
+    const { pocket, target, data, nonce, expiry, signature } = req.body;
+
+    try {
+        requireAddress(pocket, "pocket");
+        requireAddress(target, "target");
+
+        const simError = await simulateExec({
+            pocket,
+            target,
+            data,
+            nonce,
+            expiry,
+            signature
+        });
+
+        if (simError) {
+            return res.status(400).json({ error: simError });
+        }
+
+        const tx = await controller.executeFromPocket(
+            pocket,
+            target,
+            data,
+            nonce,
+            expiry,
+            signature
+        );
+
+        const receipt = await tx.wait();
+
+        res.json({
+            status: "executed",
+            txHash: receipt.hash,
+            gasUsed: receipt.gasUsed.toString()
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: decodeEthersError(err, controller.interface)
+        });
+    }
+});
+
 /**
  * Burn pocket
  * POST /api/pocket/burn
@@ -484,52 +491,9 @@ router.post("/burn", async (req, res) => {
  * POST /api/pocket/sweep
  */
 router.post("/sweep", async (req, res) => {
-    try {
-        const { pocketAddress, tokenAddress, receiverAddress, amount } = req.body;
-
-        requireAddress(pocketAddress, "pocket");
-        requireAddress(tokenAddress, "token");
-        requireAddress(receiverAddress, "receiver");
-        const { amountBaseUnits } = await resolveTokenAmount(tokenAddress, amount);
-
-        const valid = await controller.validPocket(pocketAddress);
-        if (!valid) {
-            return res.status(400).json({
-                error: { type: "VALIDATION", message: "Invalid pocket" }
-            });
-        }
-
-        const { tier } = await fetchRiskTier(tokenAddress);
-
-        try {
-            await controller.sweep.staticCall(
-                pocketAddress,
-                tokenAddress,
-                receiverAddress,
-                amountBaseUnits,
-                tier
-            );
-        } catch (err) {
-            return res.status(400).json({
-                error: parseRevertReason(err, controller.interface)
-            });
-        }
-
-        const tx = await controller.sweep(
-            pocketAddress,
-            tokenAddress,
-            receiverAddress,
-            amountBaseUnits,
-            tier
-        );
-
-        const receipt = await tx.wait();
-        res.json({ txHash: receipt.hash });
-    } catch (err) {
-        res.status(400).json({
-            error: parseRevertReason(err, controller.interface)
-        });
-    }
+    res.status(410).json({
+        error: "Sweep endpoint is disabled for collateral track"
+    });
 });
 
 /**
@@ -571,41 +535,9 @@ router.post("/simulate", async (req, res) => {
  * POST /api/pocket/fee
  */
 router.post("/fee", async (req, res) => {
-    try {
-        const { amount, tokenAddress } = req.body;
-
-        if (!tokenAddress || !ethers.isAddress(tokenAddress)) {
-            return res.status(400).json({
-                error: { type: "VALIDATION", message: "Invalid token address" }
-            });
-        }
-        const { decimals, symbol, amountHuman, amountBaseUnits } = await resolveTokenAmount(tokenAddress, amount);
-
-        const { tier } = await fetchRiskTier(tokenAddress);
-        const feeBps = await controller.feeBps(tier);
-
-        const fee = (amountBaseUnits * BigInt(feeBps)) / 10_000n;
-        const net = amountBaseUnits - fee;
-
-        res.json({
-            amount: amountBaseUnits.toString(),
-            amountHuman,
-            symbol,
-            decimals,
-            tier,
-            fee: fee.toString(),
-            feeFormatted: ethers.formatUnits(fee, decimals),
-            net: net.toString(),
-            netFormatted: ethers.formatUnits(net, decimals)
-        });
-    } catch (err) {
-        const status = isValidationError(err) ? 400 : 500;
-        res.status(status).json({
-            error: isValidationError(err)
-                ? { type: "VALIDATION", message: err.message }
-                : decodeEthersError(err, controller.interface)
-        });
-    }
+    res.status(410).json({
+        error: "Risk-tier fee endpoint is disabled for collateral track"
+    });
 });
 
 /**

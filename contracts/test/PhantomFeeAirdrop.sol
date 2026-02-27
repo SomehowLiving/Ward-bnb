@@ -32,13 +32,16 @@ contract PhantomFeeAirdrop is ERC20 {
     }
 
     /// @notice Blocks all transfers (tokens cannot be sold or moved)
-    function _beforeTokenTransfer(
+    function _update(
         address from,
         address to,
-        uint256
-    ) internal pure override {
+        uint256 value
+    ) internal override {
         // Allow minting and burning only
-        if (from == address(0) || to == address(0)) return;
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, value);
+            return;
+        }
         revert TransfersDisabled();
     }
 

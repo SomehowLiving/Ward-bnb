@@ -69,6 +69,8 @@ contract PocketController {
 
         (bool ok, ) = pocket.call{value: GAS_RESERVE}("");
         require(ok, "ETH_FUND_FAIL");
+
+        return pocket;
     }
 
     /// -----------------------------------------------------------------------

@@ -1,48 +1,58 @@
-# Ward — Product Requirements Document (PRD)
+# Ward Collateral — Product Requirements Document (PRD)
+
+---
 
 ## 1. Product Summary
 
-**Ward** is a wallet-layer security system that protects users from malicious on-chain interactions by executing risky actions inside **isolated, disposable smart-wallet “pockets”**.
+**Ward Collateral** is a non-custodial smart collateral protocol that protects users from both price risk and execution risk by allocating credit through **isolated, disposable smart-wallet “pockets.”**
 
-Instead of relying only on warnings, Ward enforces **physical isolation at execution time**, ensuring that even if a user interacts with a malicious contract, losses are limited to a small, predefined pocket and never affect the main wallet.
+Instead of allowing full collateral vaults to interact directly with merchant or DeFi contracts, Ward executes all external interactions inside bounded, single-use execution environments.
+
+Even if a merchant contract is malicious, losses are limited to a predefined exposure pocket — never the vault.
 
 ---
 
 ## 2. Problem Statement
 
-Crypto users routinely lose funds due to:
+Web3 credit systems today protect against **price volatility**, but not against **execution risk**.
 
-- Approval-drainer scams (`setApprovalForAll`, infinite allowances)
-- Malicious airdrops and claim contracts
-- Honeypot tokens and transfer-restricted assets
-- Phishing dApps and fake frontends
+Users lose funds due to:
 
-Existing security tools are primarily **detective**:
+* Malicious merchant contracts
+* Infinite approval exploits
+* Reentrancy attacks
+* Contract-level drain logic
+* Buggy BNPL integrations
+* Flash-loan manipulation attacks
 
-- browser warnings
-- signature previews
-- static scanners
+Existing DeFi lending systems are primarily **price-risk aware**, not execution-risk aware.
 
-These tools fail when:
+They assume:
 
-- users ignore warnings,
-- attacks execute faster than users can react,
-- or contracts behave maliciously only after interaction.
+* The protocol interacted with is safe.
+* The merchant contract is not malicious.
+* Approvals are benign.
 
-**Detection alone does not prevent loss.**
+This assumption fails frequently.
+
+**Collateral safety is incomplete if execution risk is unbounded.**
 
 ---
 
 ## 3. Core Insight
 
-> The only reliable way to prevent catastrophic loss is execution isolation, not better warnings.
-> 
+> Smart collateral must protect against both price volatility and execution risk.
 
-Ward introduces **transaction-level isolation**:
+Ward Collateral introduces:
 
-- every risky interaction is executed from a disposable pocket,
-- pockets have limited funds and permissions,
-- compromise is contained by design.
+* Non-custodial vault-backed credit
+* Fixed LTV credit allocation
+* Transaction-level execution isolation
+* Deterministic on-chain default logic
+
+Every external interaction is executed from a disposable pocket funded with capped exposure.
+
+Compromise is contained by architecture.
 
 ---
 
@@ -50,18 +60,21 @@ Ward introduces **transaction-level isolation**:
 
 ### Product Goals
 
-- Prevent main-wallet drains even when users interact with malicious contracts
-- Provide gasless, low-friction UX for airdrop claims
-- Make risk containment the default behavior
-- Be ecosystem-agnostic (EVM-compatible chains)
+* Provide non-custodial smart collateral vault
+* Enforce programmable LTV-based credit allocation
+* Protect vault from malicious merchant interaction
+* Provide deterministic on-chain default logic
+* Preserve Ward execution isolation primitive
+* Remain EVM-compatible
 
-### Non-Goals (explicitly out of scope for v1)
+### Non-Goals (v1)
 
-- Perfect scam detection
-- Preventing users from losing money inside pockets
-- Full cross-chain support
-- Decentralized relayer marketplace
-- DAO governance
+* Dynamic oracle-based pricing
+* Advanced credit scoring
+* Multi-asset collateral support
+* Cross-chain credit
+* Complex installment streaming logic
+* DAO governance
 
 ---
 
@@ -69,14 +82,14 @@ Ward introduces **transaction-level isolation**:
 
 ### Primary
 
-- Airdrop farmers
-- DeFi power users
-- Users interacting with unknown/new protocols
+* Users seeking BNPL-style crypto credit
+* DeFi users borrowing against collateral
+* Early adopters of on-chain commerce
 
 ### Secondary
 
-- Casual users who occasionally claim airdrops
-- Wallet providers integrating Ward as a safety layer
+* Wallet providers integrating safe credit rails
+* Payment protocols integrating non-custodial guarantees
 
 ---
 
@@ -84,270 +97,183 @@ Ward introduces **transaction-level isolation**:
 
 ### Key Objects
 
-| Object | Description |
-| --- | --- |
-| Main Wallet | User’s EOA (MetaMask, etc). Used only for identity & signatures. |
-| Pocket | Disposable smart-wallet used for exactly one risky interaction. |
-| PocketFactory | Contract that creates pockets deterministically. |
-| PocketController | Contract that routes execution and enforces policy. |
-| Relayer | Off-chain service that submits gas-paid transactions. |
-| Risk Engine | Backend service that classifies token/contract risk. |
+| Object            | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| Main Wallet       | User’s EOA. Signs credit and execution intents.        |
+| CollateralVault   | Holds long-term collateral and enforces credit policy. |
+| Pocket            | Disposable single-use execution sandbox.               |
+| PocketFactory     | Deterministic CREATE2 deployment of pockets.           |
+| PocketController  | Routes execution and funds gas reserve.                |
+| Merchant Contract | External BNPL or commerce contract.                    |
+| Relayer           | Submits gas-paid transactions.                         |
 
 ---
 
 ## 7. High-Level User Flow
 
-### Setup (one-time)
+### Collateral Setup (One-time)
 
 1. User connects wallet
-2. User initializes Ward
-3. User deposits small amount (e.g. $20–$50)
-4. System creates N pre-funded pockets
-5. Dashboard shows available pockets
+2. User deposits BNB into CollateralVault
+3. Vault computes credit capacity (LTV = 70%)
+4. Dashboard shows available credit
 
-### Risky Interaction
+---
 
-1. User clicks “Claim Airdrop”
-2. Ward analyzes target
-3. System routes interaction to a pocket
-4. User signs an off-chain intent
-5. Relayer executes transaction
-6. Pocket absorbs all risk
+### Credit Request Flow
+
+1. User selects merchant
+2. User requests credit allocation
+3. Vault locks exposure amount
+4. Vault creates pocket
+5. Vault funds pocket with capped exposure
+6. User signs execution intent
+7. Relayer executes from pocket
+8. Merchant receives payment
+
+---
 
 ### Post-Execution
 
-- If safe → tokens may be swept to main wallet
-- If malicious → pocket drained, main wallet untouched
-- User decides next action if uncertain
+* If merchant safe → purchase succeeds
+* If merchant malicious → pocket drained only
+* Vault remains untouched
+* User must repay before due date
 
 ---
 
-## Pocket Funding Model
+## 8. Collateral Funding Model
 
 ### Design
 
-- User deposits ETH **only into PocketController**
-- Pockets are created **on-demand**, not pre-funded
-- Controller funds pocket at creation time
+* User deposits BNB into CollateralVault
+* Credit capacity = deposited × 70%
+* Credit allocation locks accounting exposure
+* Pocket funded only with capped amount
+* Vault never approves pocket
+* Vault never interacts with merchant
 
-### Parameters
+### Parameters (Hackathon)
 
-- Pocket gas reserve: **0.005 ETH** (configurable)
-- Max pocket value: **0.05 ETH equivalent**
-- Auto-refill prompt when controller balance < **0.01 ETH**
+| Parameter              | Value       | Rationale                 |
+| ---------------------- | ----------- | ------------------------- |
+| LTV                    | 70%         | Conservative credit model |
+| Pocket exposure buffer | 1.2× credit | Execution risk buffer     |
+| Default grace          | 0 days      | Deterministic simplicity  |
 
-## Chain Configuration (Avalanche C-Chain)
-| Parameter             | Value     | Rationale                               |
-| --------------------- | --------- | --------------------------------------- |
-| Pocket gas reserve    | 0.01 AVAX | Covers ~10 transactions at 50 nAVAX/gas |
-| Max pocket value      | 0.5 AVAX  | ~\$20 limit per interaction             |
-| Auto-refill threshold | 0.1 AVAX  | Prompt when <4 pockets can be funded    |
+---
 
-### Rationale
-
-- Avoids wasted capital
-- Adapts to gas volatility
-- Enforces loss ceiling per interaction
-
-## 8. Trust & Security Model (Critical)
+## 9. Trust & Security Model
 
 ### Hard Guarantees
 
-- Main wallet **never executes risky calls**
-- Main wallet **never grants approvals to unknown contracts**
-- Compromise of a pocket **cannot affect other pockets or main wallet**
-- Every execution requires a user signature with strict scope
+* Vault never executes merchant calls
+* Vault never grants approvals to merchant
+* Pocket cannot access vault
+* Single-use enforcement guaranteed
+* LTV strictly enforced
+* Default logic deterministic
 
 ### Explicit Limitations
 
-- Pocket funds can be lost
-- Honeypot tokens may be worthless
-- Backend risk classification is probabilistic
+* Pocket funds can be lost
+* Collateral subject to liquidation on default
+* No price oracle protection in v1
+* No protection after repayment withdrawal
 
 ---
 
-## 9. Risk Classification Model (Authoritative Policy)
+## 10. Credit Model (Authoritative Policy)
 
-Ward uses a **four-tier confidence model**.
+### Credit Capacity
 
-### Tier 1 — Explicitly Malicious
+```
+creditCapacity = deposited × LTV
+```
 
-**Signals**
+### Allocation
 
-- Blacklisted address
-- Known honeypot bytecode
-- `transfer()` always reverts
-- 100% transfer tax
+* User requests amount ≤ availableCredit
+* Vault locks allocation
+* Borrowed balance increases
 
-**Action**
+### Repayment
 
-- Auto-abandon pocket
-- No sweep
-- Inform user
-- No fee
-- Pocket optionally burned
+* User repays full amount before dueDate
+* Borrowed decreases
+* Credit restored
 
----
+### Default
 
-### Tier 2 — Explicitly Safe (Auto-sweep, 2% fee)
+If:
 
-**Signals**
+```
+block.timestamp > dueDate
+```
 
-- Verified contract
-- Bytecode exactly matches **audited, known source**
-- Deployer or token on **on-chain whitelist**
-- Transfer + DEX sell simulation returns **>98% expected value**
-- `estimateGas(transfer) < 80k`
-- No external calls inside `transfer()` (pre-transfer hooks)
-- No state-dependent logic
+Then:
 
-**Action**
+* Allocation seized
+* Borrowed reduced
+* Credit capacity reduced
 
-- Auto-sweep to main wallet
-- Protocol fee: 2%
-- User notified post-fact
-
-> Whitelist-only auto-sweep is mandatory. 
-> Heuristics alone are insufficient and unsafe.> 
-
----
-
-### Tier 3 — Unsafe / Simulation Failed (Force Withdraw)
-
-**Signals**
-
-- Unverified or obfuscated code
-- Transfer tax 5–15%
-- Simulation revert
-- Gas griefing (>200k gas)
-- Economic extraction detected
-
-**Action**
-
-- Funds remain isolated
-- Hold tokens in pocket
-- Require explicit “Force Withdraw”
-- Protocol fee: 8%
-
----
-
-### Tier 4 — Provisional Safe (User-confirmed)
-
-**Signals**
-
-- Simulation passes
-- But stateful logic detected (`block.number`, blacklists)
-- Confidence 60–90%
-
-**Action**
-
-- Require explicit user confirmation
-- Protocol fee: 3%
-- No auto-sweep
-
----
-
-## 10. Backend Responsibilities
-
-### Risk Engine
-
-- Static bytecode analysis
-- Contract metadata checks
-- Known scam database lookup
-- Confidence scoring
-
-### Simulation Engine
-
-- `eth_call` transfer simulation
-- `estimateGas` checks
-- Forked-chain sell simulation (DEX)
-- Cache results for 10 minutes
-
-### Simulation Cost Control
-
-- Backend pays for simulations
-- 3 free simulations/user/day
-- Beyond limit: require signed meta-intent
-- Cache results globally for **10 minutes**
-
-### Policy Enforcement
-
-- Tier assignment
-- Auto-sweep eligibility
-- UI messaging
+No oracle required.
+Fully on-chain.
 
 ---
 
 ## 11. Smart Contract Responsibilities
 
+### CollateralVault
+
+* Accept deposits
+* Track deposited & borrowed
+* Compute availableCredit
+* Create pockets via controller
+* Fund exposure
+* Track repayment
+* Enforce liquidation
+
 ### Pocket
 
-- Stores owner address
-- Executes exactly one authorized call
-- Verifies EIP-712 signatures
-- Enforces nonce & expiry
-- Can transfer owned assets only
-
-### PocketFactory
-
-- Creates pockets via CREATE2
-- Supports batch creation
-- Minimal persistent state
+* Verify EIP-712 signatures
+* Enforce single execution
+* Enforce nonce & expiry
+* Execute target.call()
 
 ### PocketController
 
-- Routes execution
-- Triggers sweeps
-- Enforces fee capture
-- Holds no long-term user funds
-- Enforces fee logic **on-chain**
-- Calculates tier-based fee
-- Sends fee to protocol treasury
-- Relayer reimbursed separately
-
-> Relayers never touch user assets.
-> 
+* Deploy pockets
+* Fund gas reserve
+* Route execution
+* Enforce isolation
+* No long-term user fund custody
 
 ---
 
 ## 12. Relayer Responsibilities
 
-- Receive signed intents
-- Verify signature, nonce, expiry
-- Pay gas for execution
-- Call controller methods
-- Capture protocol fees
-- Receive gas reimbursement
-- No fee custody
-- No asset authority
+* Receive signed intent
+* Verify format
+* Submit executeFromPocket
+* Pay gas
+* No custody of assets
+* No authority over vault
 
-Relayer is **non-custodial** and **replaceable**.
+Relayer is replaceable and non-custodial.
 
 ---
 
 ## 13. UX Principles
 
-- Default to safety
-- Never surprise users with asset movement
-- Clearly distinguish:
-    - “Probably safe”
-    - “Confirmed safe”
-    - “Unsafe”
-- Force Withdraw UX must be explicit and cautionary
+* Credit visibility must be clear
+* Exposure must be explicitly shown
+* Vault balance must never change during merchant execution
+* Default logic must be transparent
+* Repayment must be simple
 
-### Force Withdraw UX (Tier 3 — mandatory)
-
-Before button enables:
-
-- Display failure reason + stats
-    
-    (“38% of similar tokens are honeypots”)
-    
-- Show dollar amount being moved
-- Checkbox: *“I understand this token may be malicious”*
-- **30-second cooldown timer**
-
-This is non-negotiable.
+No silent asset movement.
+No hidden liquidation triggers.
 
 ---
 
@@ -355,110 +281,110 @@ This is non-negotiable.
 
 ### Security
 
-- Zero main-wallet drains
-- Pocket loss limited to configured cap
-- Average loss per pocket
-- Auto-sweep vs force-withdraw ratio
-- Simulation cache hit rate
-- Relayer gas reimbursement rate
+* Zero vault drains
+* Loss capped to pocket
+* LTV enforcement accuracy
+* No execution escalation beyond pocket
+
+### Credit Integrity
+
+* Correct borrowed accounting
+* Correct default enforcement
+* Accurate credit restoration
 
 ### UX
 
-- < 2 clicks to claim safely
-- < 1 signature per action
-
-### Adoption
-
-- Pockets used per user
-- % claims routed via pocket
-- Auto-sweep rate vs manual
+* < 2 confirmations per credit request
+* 1 signature for execution
 
 ---
 
 ## 15. Phased Delivery Plan
 
-### Phase 0 — Hackathon MVP (Must Ship)
+### Phase 0 — Hackathon MVP
 
-**Goal:** Prove isolation works.
+Goal: Prove execution-isolated smart collateral works.
 
-**Scope**
+Scope:
 
-- Pocket + Controller contracts
-- Basic relayer
-- Simple frontend
-- Fake malicious airdrop demo
-- Tier 1–3 logic (no DEX sell sim)
+* CollateralVault contract
+* Existing Ward core
+* Good + malicious merchant demo
+* Repayment logic
+* Liquidation logic
+* Fixed LTV
 
-**Deliverable**
+Deliverable:
 
-- Live demo: pocket drained, main wallet safe
+Live demo:
+
+* Merchant safe → success
+* Merchant malicious → pocket drained
+* Vault unchanged
 
 ---
 
 ### Phase 1 — Production MVP
 
-**Goal:** Usable by real users.
+Add:
 
-**Add**
-
-- Tier 4 logic
-- DEX sell simulation
-- Force Withdraw UX
-- Fee capture
-- Caching & rate limits
+* Installment support
+* Multi-asset collateral
+* Adjustable LTV
+* Credit scoring modifier
+* Price oracle integration
+* Auto-burn pocket after repayment
 
 ---
 
-### Phase 2 — Advanced Protection
+### Phase 2 — Advanced Credit Layer
 
-**Add**
+Add:
 
-- Social recovery for pockets
-- Pocket burner (destroy pockets holding toxic assets)
-- Relayer refund buffer (staked gas insurance for failed transactions)
-- Multiple relayers (decentralize execution)
-- Advanced simulation heuristics (improve detection accuracy)
-- Wallet extension integration (MetaMask Snap, Core Wallet plugin)
+* Dynamic risk-adjusted LTV
+* Merchant risk scoring
+* Automated liquidation bots
+* EIP-4337 paymaster integration
+* SDK for wallet integration
 
 ---
 
 ### Phase 3 — Ecosystem Expansion
 
-**Add**
+Add:
 
-- Cross-chain pockets
-- Relayer marketplace
-- Wallet SDK
-- Enterprise integrations
-
----
-
-## 16. Explicit Out-of-Scope Items (for clarity)
-
-- Perfect scam detection
-- Full DAO governance
-- Non-EVM chains
-- Automated trading / selling
-- Custodial asset management
-- Token price accuracy guarantees
-- Rug-pull prediction
-- Post-sweep protection
-- Recovery of drained pockets
+* Cross-chain vaults
+* Relayer marketplace
+* Credit NFT representation
+* Institutional integrations
 
 ---
 
-## 17. One-Sentence Product Definition (for judges)
+## 16. Explicit Out-of-Scope
 
-> Ward prevents catastrophic wallet drains by executing risky on-chain actions inside disposable smart-wallet pockets, limiting loss by design instead of relying on warnings.
-> 
+* Perfect scam detection
+* Automated trading
+* DAO governance
+* Token price guarantees
+* Cross-chain liquidation
+* Credit insurance markets
+* Custodial asset holding
 
 ---
 
-## 18. What to Build First (Engineering Order)
+## 17. One-Sentence Product Definition
 
-1. Pocket + Controller contracts
-2. Signature verification & nonce logic
-3. Relayer execution path
-4. Basic risk classification
-5. Minimal UI
-6. Demo scenario
+> Ward Collateral is a non-custodial smart collateral protocol that allocates credit through isolated execution pockets, protecting users from both price risk and execution risk by design.
+
+---
+
+## 18. Engineering Order
+
+1. CollateralVault contract
+2. Integrate with existing PocketController
+3. Implement repayment + liquidation
+4. Write malicious merchant test
+5. Validate isolation invariants
+6. Build demo UI
+
+---

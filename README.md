@@ -1,250 +1,248 @@
-# Ward
 
-**Ward** is a wallet-layer security system that prevents catastrophic wallet loss by executing risky on-chain interactions inside **isolated, disposable smart-wallet pockets**.
+# 🛡 Ward Collateral
 
-Instead of relying on warnings or detection alone, Ward enforces **execution isolation** so that even if a user interacts with a malicious contract, losses are **contained by design** and never propagate to the main wallet.
+**Ward Collateral** is a non-custodial smart collateral protocol that enables Web3 credit and BNPL while protecting users from catastrophic execution risk.
 
----
-
-## What problem are we solving?
-
-Crypto users lose millions of dollars interacting with malicious contracts:
-
-* Approval drainers (`setApprovalForAll`, infinite ERC-20 allowances)
-* Fake or malicious airdrops
-* Honeypot and tax tokens
-* Phishing dApps and spoofed frontends
-
-Most existing security tools are **detective**:
-
-* warnings,
-* signature previews,
-* contract scanners.
-
-These fail when users ignore alerts or when malicious logic executes faster than users can react.
-
-**Once a transaction is sent from the main wallet, damage is irreversible.**
+Traditional smart collateral systems protect against price volatility.
+Ward extends this by introducing **execution isolation**, ensuring that even if a merchant or protocol is malicious, collateral loss is strictly capped by design.
 
 ---
 
-## The core primitive: Execution Isolation
+## 🎯 The Problem
 
-Ward introduces a new security primitive:
+Crypto BNPL and Web3 credit systems today suffer from structural weaknesses:
 
-> **Every risky on-chain action is executed from a disposable, single-use smart wallet instead of the main wallet.**
+### ❌ Centralized Custody
 
-This “pocket”:
+Users must trust platforms holding their assets.
 
-* holds a small, capped balance,
-* executes exactly one authorized action,
-* is destroyed or disabled immediately after use.
+### ❌ Opaque Liquidity
 
-If compromised, **only the pocket is affected**.
+Off-chain underwriting and unclear guarantees.
 
-The main wallet:
+### ❌ Execution Risk (Unsolved)
 
-* never executes risky calls,
-* never grants approvals to unknown contracts,
-* is used only for identity and message signatures.
+If a merchant contract is malicious or buggy, a user’s entire collateral vault can be exposed.
 
----
+Current smart collateral protects against **price drops**, not **malicious execution**.
 
-## How does it work? (High-level)
-
-1. **User initiates a risky action**
-   Example: claiming an airdrop or interacting with an unknown contract.
-
-2. **Ward analyzes the target**
-   Backend performs static checks and simulations to classify risk.
-
-3. **A pocket is created on demand**
-   A disposable smart wallet is deployed and funded with **0.005 ETH** (~$12). 
-   Each pocket is capped at **0.05 ETH** equivalent—your worst-case loss per interaction.
-
-4. **User signs an intent (no gas)**
-   The user signs a message authorizing:
-
-   * one specific pocket,
-   * one specific contract,
-   * one exact calldata,
-   * exactly once.
-
-5. **Relayer executes the transaction**
-   A relayer pays gas and submits the transaction from the pocket.
-
-6. **Outcome is contained**
-
-   * If the contract is safe: assets can be swept to the main wallet.
-   * If malicious: the pocket is drained or burned.
-   * In all cases, the main wallet remains untouched.
+As Web3 credit scales, execution risk becomes systemic risk.
 
 ---
 
-### How Ward decides what to do
+## 💡 Our Solution
 
-After a pocket executes, Ward classifies the result into one of three categories:
+Ward introduces **Execution-Isolated Smart Collateral**.
 
-- **Safe** (e.g., USDC, verified airdrops): **auto-transferred** to your main wallet
-- **Uncertain** (unverified code, simulation warnings): **held in pocket** until you manually withdraw
-- **Malicious** (honeypot, drain attempt): **pocket destroyed**, funds abandoned
+Instead of allowing the full collateral vault to interact with external contracts:
 
-Ward never moves assets without a safety decision—automatic or user-confirmed.
+1. Users lock assets into a programmable on-chain vault.
+2. The vault calculates available credit (LTV-based).
+3. When credit is requested, the vault creates a **disposable smart-wallet pocket**.
+4. Only the allocated credit amount is exposed.
+5. The pocket executes exactly one transaction.
+6. If compromised, only the pocket is affected — never the vault.
+
+Collateral remains protected by design.
 
 ---
 
-## How does the flow look like ?
+# 🏗 Architecture
 
-### Ward Execution Isolation Flow
-*The main wallet never executes risky calls — it only signs a one-time intent.*
-
-```markdown
-
-┌────────────────┐        Sign intent        ┌───────────────┐
-│   Main Wallet  │ ───────────────────────▶ │     Pocket     │
-│ (Identity only)│                           │ (Single-use)  │
-└────────────────┘                           └──────┬────────┘
-                                                           │
-                                             On-chain call │
-                                                           ▼
-                                           ┌────────────────────┐
-                                           │  Target Contract   │
-                                           │ (Airdrop / DeFi)   │
-                                           └────────────────────┘
+```text
+User
+  ↓ deposit
+CollateralVault (non-custodial)
+  ↓ allocate credit
+Ward Pocket (single-use isolation)
+  ↓ execute
+Merchant (trusted or malicious)
 ```
 
-### Ward Trust Boundary Model
-*Risky execution is physically separated from the user’s wallet by a disposable smart-wallet boundary.*
-```markdown
-┌───────────────────────────────────────────┐
-│             USER TRUST ZONE               │
-│                                           │
-│  ┌───────────────┐                        │
-│  │ Main Wallet   │                        │
-│  │  (Signer)     │                        │
-│  └───────┬───────┘                        │
-│          │  Off-chain signature           │
-│          ▼                                │
-│  ┌───────────────┐                        │
-│  │   Pocket      │  ←── Isolation Wall    │
-│  │ (Single-use)  │                        │
-│  └───────┬───────┘                        │
-└──────────│────────────────────────────────┘
-           │  On-chain execution
-           ▼
-┌───────────────────────────────────────────┐
-│        UNTRUSTED CONTRACT SPACE           │
-│                                           │
-│   Airdrops • DeFi • Unknown Contracts     │
-└───────────────────────────────────────────┘
+---
+
+## 🔐 Core Components
+
+### 1️⃣ CollateralVault
+
+* Stores user deposits (BNB / ERC20)
+* Calculates credit capacity (e.g., 70% LTV)
+* Locks collateral when credit is issued
+* Enforces repayment deadlines
+* Handles default liquidation on-chain
+
+---
+
+### 2️⃣ Ward Pocket (Isolation Primitive)
+
+* Disposable smart contract wallet
+* Single-use execution
+* EIP-712 signature-bound calls
+* No approval inheritance
+* Self-destructs after execution
+
+---
+
+### 3️⃣ Merchant Contracts (Demo)
+
+* `MerchantGood.sol` – Legitimate payment flow
+* `MerchantMalicious.sol` – Attempts to drain funds
+
+Used to demonstrate containment.
+
+---
+
+# 🔁 How It Works
+
+## Step 1 — Deposit Collateral
+
+User deposits BNB into `CollateralVault`.
+
+Vault computes:
+
+```text
+creditCapacity = collateral × LTV
 ```
----
 
-⚠️ **If Ward marks a token as risky, withdrawal requires explicit confirmation:**
-- You see exactly why it failed (e.g., "Transfer simulation reverted")
-- You must check: *"I understand this token may be malicious"*
-- **30-second cooldown** timer prevents impulsive clicks
-
-No surprises. No blame-shifting.
-
----
-## Why is this safer than existing approaches?
-
-### Detection vs. containment
-
-| Approach           | What happens if user ignores warning? |
-| ------------------ | ------------------------------------- |
-| Browser warnings   | Wallet drained                        |
-| Signature previews | Wallet drained                        |
-| Static scanners    | Wallet drained                        |
-| **Ward**    | **Loss capped to pocket**             |
-
-Ward does not rely on users making the “right” decision.
-It **removes catastrophic failure modes entirely**.
+Example:
+Deposit 10 BNB → 70% LTV → 7 BNB credit capacity.
 
 ---
 
-### No approval inheritance
+## Step 2 — Request BNPL Credit
 
-* Main wallet never approves unknown contracts.
-* Pockets do not inherit main-wallet permissions.
-* Compromising a pocket cannot escalate access.
+User requests 1 BNB credit to pay a merchant.
 
-This is fundamentally safer than:
+Vault:
 
-* session keys,
-* delegated approvals,
-* extended wallet permissions.
-
----
-
-### Gasless UX without custody
-
-* Users sign **messages**, not transactions (no ETH needed).
-* Relayers pay gas upfront and are reimbursed from a separate pool.
-* Ward's controller enforces fees **on-chain**, sending them directly to the protocol treasury.
-* Relayers **never touch your tokens**—they only execute transactions.
-
-You never need ETH in your main wallet to claim airdrops.
-
-Security is preserved without UX friction.
+* Checks available credit
+* Locks 1 BNB allocation
+* Deploys disposable pocket
+* Funds pocket with 1 BNB
 
 ---
 
-### Fees
+## Step 3 — Execute Payment via Pocket
 
-Ward charges **2–8%** on successful transfers, depending on risk:
-- **Safe tokens**: 2% (auto-sweep)
-- **Provisional tokens**: 3% (user-confirmed)
-- **Risky tokens**: 8% (Force Withdraw)
+The pocket executes the merchant call.
 
-No fees if a pocket is drained. Fees are enforced on-chain; relayers never custody your assets.
+### Case A — Legit Merchant
 
----
+Payment succeeds.
 
-## What does the demo prove?
+### Case B — Malicious Merchant
 
-The demo intentionally walks into a scam.
+Merchant attempts drain.
 
-### Demo scenario (two cases)
-
-**Case 1: Drain Attack**
-1. User claims a **malicious airdrop** using Ward.
-2. The contract attempts to drain the executing wallet.
-3. That wallet is a **pocket** (holds 0.005 ETH).
-4. Pocket drained. Main wallet: untouched. Loss: capped.
-
-**Case 2: Honeypot Token**
-1. User receives a token that looks valuable but blocks all sales.
-2. Token stays **isolated in pocket**.
-3. Main wallet never exposed. User chooses to abandon pocket.
-
-Both prove **containment by design**.
-
-### What this proves
-
-* Malicious execution **can be survived by design**
-* Wallet drains become **bounded losses**, not catastrophic failures
-* Ward protects users **even when they make mistakes**
-
-This is the core value proposition.
+Result:
+Only pocket funds are affected.
+Vault collateral remains untouched.
 
 ---
 
-## What Ward does *not* claim
+## Step 4 — Repayment or Default
 
-* It does not guarantee tokens are valuable.
-* It does not promise perfect scam detection.
-* It does not recover funds from compromised pockets.
-* It does not protect assets after they are moved to the main wallet.
+### If User Repays:
 
-Ward is honest about its scope:
+* Borrowed amount is cleared.
+* Credit capacity restored.
 
-> **It prevents catastrophic loss — not all loss.**
+### If User Defaults:
+
+* Locked collateral portion is seized.
+* Default logic is enforced entirely on-chain.
+
+```solidity
+if (block.timestamp > dueDate && !repaid) {
+    seizeCollateral();
+}
+```
+
+No centralized intervention required.
 
 ---
 
-## In One-sentence
+# 🔒 Security Innovation
 
-> **Ward turns every risky on-chain action into a disposable, loss-capped execution environment, making wallet drains structurally impossible.**
+| Risk Type              | Traditional Smart Collateral | Ward Collateral |
+| ---------------------- | ---------------------------- | --------------- |
+| Price Volatility       | ✔                            | ✔               |
+| Malicious Merchant     | ❌                            | ✔               |
+| Infinite Approval      | ❌                            | ✔               |
+| Execution-Level Attack | ❌                            | ✔               |
+| Vault Drain Cascade    | ❌                            | ✔               |
+
+Ward protects against both **price risk** and **execution risk**.
+
+---
+
+# 📜 Track Alignment (BNB Hack — Smart Collateral)
+
+We satisfy all challenge requirements:
+
+✔ Non-custodial smart collateral
+✔ Programmable vault logic
+✔ Verifiable credit guarantees
+✔ Clear on-chain default enforcement
+✔ Shared trust-minimized collateral layer
+✔ No surrender of asset custody
+
+Ward extends traditional collateral with execution isolation — enabling safer Web3 credit.
+
+---
+
+# 🛠 Tech Stack
+
+* Solidity 0.8.x
+* BNB Chain / opBNB
+* Ward execution isolation primitive
+* EIP-712 signatures
+* OpenZeppelin contracts
+
+---
+
+# 🎬 Demo Scenario
+
+### Scenario 1 — Legitimate Merchant
+
+1. Deposit 10 BNB.
+2. Request 1 BNB credit.
+3. Pocket executes payment.
+4. Repay successfully.
+5. Credit restored.
+
+---
+
+### Scenario 2 — Malicious Merchant
+
+1. Deposit 10 BNB.
+2. Request 1 BNB credit.
+3. Pocket executes malicious contract.
+4. Pocket drained.
+5. Vault still holds full collateral.
+6. Exposure capped.
+
+This proves execution isolation within a smart collateral system.
+
+---
+
+# 🧩 Future Roadmap
+
+* Dynamic LTV via oracle feeds
+* On-chain credit scoring
+* Merchant risk profiles
+* Multi-asset collateral (ERC20, NFTs)
+* Cross-chain credit routing
+
+---
+
+# 🏁 Conclusion
+
+Ward Collateral upgrades smart collateral from price-only protection to execution-safe credit infrastructure.
+
+We don’t assume contracts are safe.
+We design systems where failure is bounded.
+
+> **Ward makes Web3 credit safe enough for mainstream adoption.**
 
 ---
