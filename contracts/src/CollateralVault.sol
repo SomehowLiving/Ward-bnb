@@ -19,8 +19,12 @@ contract CollateralVault {
     mapping(address => Position) public positions;
     mapping(bytes32 => CreditPosition) public creditPositions;
     mapping(bytes32 => address) public creditBorrower;
+    mapping(address => uint256) public merchantFlagCount;
+    mapping(address => mapping(address => bool)) public userHasFlagged;
+    mapping(address => bool) public merchantBlocked;
 
     address public immutable pocketController;
+    address public owner;
 
     uint256 public constant LTV = 70;
 
@@ -46,10 +50,35 @@ contract CollateralVault {
     error AlreadyRepaid();
     error IncorrectRepayment();
     error NotDefaulted();
+    error NotOwner();
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NotOwner();
+        _;
+    }
 
     constructor(address _controller) {
         if (_controller == address(0)) revert InvalidController();
         pocketController = _controller;
+        owner = msg.sender;
+    }
+
+    function flagMerchant(address merchant) external {
+        require(merchant != address(0), "Invalid merchant");
+        require(!userHasFlagged[msg.sender][merchant], "Already flagged");
+
+        userHasFlagged[msg.sender][merchant] = true;
+        merchantFlagCount[merchant] += 1;
+    }
+
+    function blockMerchant(address merchant) external onlyOwner {
+        require(merchant != address(0), "Invalid merchant");
+        merchantBlocked[merchant] = true;
+    }
+
+    function unblockMerchant(address merchant) external onlyOwner {
+        require(merchant != address(0), "Invalid merchant");
+        merchantBlocked[merchant] = false;
     }
 
     function deposit() external payable {
@@ -76,6 +105,7 @@ contract CollateralVault {
         uint256 duration,
         uint256 salt
     ) external returns (bytes32 requestId, address pocket) {
+        require(!merchantBlocked[merchant], "Merchant blocked");
         if (duration == 0) revert InvalidDuration();
         if (amount > availableCredit(msg.sender)) revert InsufficientCredit();
 

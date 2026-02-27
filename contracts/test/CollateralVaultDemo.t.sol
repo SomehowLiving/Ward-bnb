@@ -319,6 +319,89 @@ contract CollateralVaultDemoTest is Test {
         vault.deposit{value: 0}();
     }
 
+    function testMerchantFlaggingIncrementsCountOncePerUser() public {
+        address merchant = address(goodMerchant);
+        address user2 = address(0xCAFE);
+
+        vm.prank(borrower);
+        vault.flagMerchant(merchant);
+        assertEq(vault.merchantFlagCount(merchant), 1);
+        assertTrue(vault.userHasFlagged(borrower, merchant));
+
+        vm.prank(user2);
+        vault.flagMerchant(merchant);
+        assertEq(vault.merchantFlagCount(merchant), 2);
+        assertTrue(vault.userHasFlagged(user2, merchant));
+    }
+
+    function testMerchantFlaggingRejectsDuplicateFlagFromSameUser() public {
+        address merchant = address(goodMerchant);
+
+        vm.prank(borrower);
+        vault.flagMerchant(merchant);
+
+        vm.prank(borrower);
+        vm.expectRevert("Already flagged");
+        vault.flagMerchant(merchant);
+    }
+
+    function testMerchantFlaggingDoesNotAutoBlock() public {
+        address merchant = address(goodMerchant);
+
+        vm.prank(borrower);
+        vault.flagMerchant(merchant);
+        vm.prank(address(0xB0B));
+        vault.flagMerchant(merchant);
+        vm.prank(address(0xDAD));
+        vault.flagMerchant(merchant);
+
+        assertEq(vault.merchantFlagCount(merchant), 3);
+        assertFalse(vault.merchantBlocked(merchant));
+    }
+
+    function testMerchantBlockUnblockOwnerOnly() public {
+        address merchant = address(goodMerchant);
+
+        vm.prank(borrower);
+        vm.expectRevert(CollateralVault.NotOwner.selector);
+        vault.blockMerchant(merchant);
+
+        vm.prank(borrower);
+        vm.expectRevert(CollateralVault.NotOwner.selector);
+        vault.unblockMerchant(merchant);
+
+        vault.blockMerchant(merchant);
+        assertTrue(vault.merchantBlocked(merchant));
+
+        vault.unblockMerchant(merchant);
+        assertFalse(vault.merchantBlocked(merchant));
+    }
+
+    function testBlockedMerchantPreventsCreditRequestAndUnblockRestoresFlow() public {
+        vm.prank(borrower);
+        vault.deposit{value: 5 ether}();
+
+        vault.blockMerchant(address(goodMerchant));
+        assertTrue(vault.merchantBlocked(address(goodMerchant)));
+
+        vm.prank(borrower);
+        vm.expectRevert("Merchant blocked");
+        vault.requestCredit(address(goodMerchant), 1 ether, 3 days, 777);
+
+        vault.unblockMerchant(address(goodMerchant));
+        assertFalse(vault.merchantBlocked(address(goodMerchant)));
+
+        vm.prank(borrower);
+        (, address pocket) = vault.requestCredit(address(goodMerchant), 1 ether, 3 days, 778);
+
+        _executeFromPocket(
+            pocket,
+            address(goodMerchant),
+            abi.encodeWithSelector(MerchantGood.purchase.selector),
+            888
+        );
+    }
+
     function _executeFromPocket(
         address pocket,
         address target,

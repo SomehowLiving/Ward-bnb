@@ -10,6 +10,7 @@ import verifyRoutes from "./routes/verify.js";
 import tokenRoutes from "./routes/token.js";
 import metaRoutes from "./routes/meta.js";
 import creditRoutes from "./routes/credit.js";
+import merchantRoutes from "./routes/merchant.js";
 import { requireAddress } from "./utils/validate.js";
 import { controller, provider } from "./config/chain.js";
 import { pocketRegistry } from "./utils/pocketRegistry.js";
@@ -74,6 +75,12 @@ app.use("/api/token", tokenRoutes);
  * (vault-aware)
  */
 app.use("/api/credit", creditRoutes);
+
+/**
+ * Merchant governance
+ * (flag status + owner blocklist operations)
+ */
+app.use("/api/merchant", merchantRoutes);
 
 /**
  * System meta, health, metrics

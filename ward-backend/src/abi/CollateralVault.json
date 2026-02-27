@@ -19,6 +19,27 @@
     },
     {
       "type": "function",
+      "name": "owner",
+      "stateMutability": "view",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }]
+    },
+    {
+      "type": "function",
+      "name": "merchantFlagCount",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }]
+    },
+    {
+      "type": "function",
+      "name": "merchantBlocked",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }]
+    },
+    {
+      "type": "function",
       "name": "creditPositions",
       "stateMutability": "view",
       "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
@@ -64,6 +85,27 @@
       "name": "liquidate",
       "stateMutability": "nonpayable",
       "inputs": [{ "name": "requestId", "type": "bytes32", "internalType": "bytes32" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "flagMerchant",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "merchant", "type": "address", "internalType": "address" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "blockMerchant",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "merchant", "type": "address", "internalType": "address" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "unblockMerchant",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "merchant", "type": "address", "internalType": "address" }],
       "outputs": []
     },
     {

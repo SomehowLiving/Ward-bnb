@@ -8,7 +8,9 @@ import {
   depositCollateral,
   getCreditRequestState,
   getCreditState,
+  getMerchantStatus,
   getPocketNextNonce,
+  MerchantStatus,
   relayPocketExecution,
   repayOnVault,
   requestCreditOnVault,
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const [requestState, setRequestState] = useState<CreditRequestState | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [merchantStatus, setMerchantStatus] = useState<MerchantStatus | null>(null);
 
   const [depositAmount, setDepositAmount] = useState("1");
   const [merchantAddress, setMerchantAddress] = useState("");
@@ -61,6 +64,14 @@ export default function Dashboard() {
 
     void init();
   }, [isConnected, address]);
+
+  useEffect(() => {
+    if (!ethers.isAddress(merchantAddress)) {
+      setMerchantStatus(null);
+      return;
+    }
+    void safeRun(() => refreshMerchantStatus(merchantAddress));
+  }, [merchantAddress]);
 
   const creditLabel = useMemo(() => {
     if (!creditState) return "Disconnected";
@@ -102,6 +113,7 @@ export default function Dashboard() {
   async function onRequestCredit(e: React.FormEvent) {
     e.preventDefault();
     if (!signer || !address) return;
+    if (merchantStatus?.blocked) throw new Error("Merchant is blocked");
 
     setError("");
     setStatus("Requesting credit...");
@@ -119,6 +131,15 @@ export default function Dashboard() {
 
     await Promise.all([refreshCredit(address), refreshRequest(created.requestId)]);
     setStatus("Credit requested and pocket created.");
+  }
+
+  async function refreshMerchantStatus(merchant: string) {
+    if (!ethers.isAddress(merchant)) {
+      setMerchantStatus(null);
+      return;
+    }
+    const state = await getMerchantStatus(merchant);
+    setMerchantStatus(state);
   }
 
   async function onExecute(e: React.FormEvent) {
@@ -207,8 +228,13 @@ export default function Dashboard() {
           <input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} placeholder="Amount BNB" />
           <input value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} placeholder="Duration seconds" />
           <input value={salt} onChange={(e) => setSalt(e.target.value)} placeholder="Salt" />
-          <button type="submit" disabled={!signer}>Buy with Ward</button>
+          <button type="button" onClick={() => safeRun(() => refreshMerchantStatus(merchantAddress))}>
+            Check Merchant
+          </button>
+          <button type="submit" disabled={!signer || merchantStatus?.blocked}>Buy with Ward</button>
         </form>
+        <div>Merchant Flag Count: {merchantStatus?.flagCount ?? "-"}</div>
+        <div>Merchant Blocked: {merchantStatus ? String(merchantStatus.blocked) : "-"}</div>
         <div>requestId: {activeRequest?.requestId ?? "-"}</div>
         <div>pocket: {activeRequest?.pocket ?? "-"}</div>
         <div>dueDate: {activeRequest?.dueDate ?? "-"}</div>
