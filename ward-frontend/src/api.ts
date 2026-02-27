@@ -49,6 +49,55 @@ export type MerchantStatus = {
   blocked: boolean;
 };
 
+export type ActivityCredit = {
+  requestId: string;
+  user: string;
+  merchant: string;
+  blockNumber: number;
+  timestamp: number;
+  principal: string;
+  pocket: string;
+};
+
+export type ActivityRepayment = {
+  requestId: string;
+  user: string;
+  amount: string;
+  remaining: string;
+  installmentsPaid: number;
+  blockNumber: number;
+  timestamp: number;
+};
+
+export type ActivityPocket = {
+  pocket: string;
+  owner: string;
+  blockNumber: number;
+  timestamp: number;
+};
+
+export type ActivityExecution = {
+  merchant: string;
+  buyer?: string;
+  amount?: string;
+  type: "purchase" | "attack";
+  blockNumber: number;
+  timestamp: number;
+};
+
+export type CreditRequestItem = {
+  requestId: string;
+  user: string;
+  merchant: string;
+  pocket: string;
+  principal: string;
+  nextDueDate: string;
+  closed: boolean;
+  defaulted: boolean;
+  blockNumber: number;
+  timestamp: number;
+};
+
 function requireVaultAddress() {
   if (!VAULT_ADDRESS || !ethers.isAddress(VAULT_ADDRESS)) {
     throw new Error("Missing or invalid VITE_VAULT_ADDRESS");
@@ -188,4 +237,45 @@ export async function signExecIntent(
   };
 
   return signer.signTypedData(domain, types, value);
+}
+export async function getCreditRequests(user: string): Promise<CreditRequestItem[]> {
+  const res = await fetch(API.activity.credits(user));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch credit activity"));
+  return data.items || [];
+}
+
+export async function getCreditActivity(user: string): Promise<ActivityCredit[]> {
+  const res = await fetch(API.activity.credits(user));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch credit activity"));
+  return data.items || [];
+}
+
+export async function getRepaymentActivity(user: string): Promise<ActivityRepayment[]> {
+  const res = await fetch(API.activity.repayments(user));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch repayment activity"));
+  return data.items || [];
+}
+
+export async function getPocketActivity(user: string): Promise<ActivityPocket[]> {
+  const res = await fetch(API.activity.pockets(user));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch pocket activity"));
+  return data.items || [];
+}
+
+export async function getExecutionActivity(user: string): Promise<ActivityExecution[]> {
+  const res = await fetch(API.activity.executions(user));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch execution activity"));
+  return data.items || [];
+}
+
+export async function getMerchantActivity(merchant: string) {
+  const res = await fetch(API.activity.merchant(merchant));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch merchant activity"));
+  return data;
 }

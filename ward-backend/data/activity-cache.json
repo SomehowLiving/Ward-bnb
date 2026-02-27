@@ -1,0 +1,57 @@
+{
+    "lastScannedBlock": 92880000,
+    "chainId": 97,
+    "vault": "0xf696d0f64631871DED01b1212fA0b9402525a39E",
+    "factory": "0xB0019c4f6e89899CAFc586e3BCf105717346d65F",
+    "controller": "0x5DfeeA17F14E1ea2f93B45fF91e9E57a8e393245",
+    "users": {
+        "0xUserAddress": {
+            "credits": [
+                {
+                    "requestId": "...",
+                    "merchant": "...",
+                    "pocket": "...",
+                    "principal": "100000000000000000",
+                    "remaining": "75000000000000000",
+                    "installmentAmount": "25000000000000000",
+                    "totalInstallments": 4,
+                    "installmentsPaid": 1,
+                    "interval": 604800,
+                    "nextDueDate": 1772832912,
+                    "defaulted": false,
+                    "closed": false,
+                    "createdBlock": 92873999,
+                    "createdTxHash": "0x..."
+                }
+            ],
+            "repayments": [
+                {
+                    "requestId": "...",
+                    "amount": "25000000000000000",
+                    "remaining": "75000000000000000",
+                    "installmentsPaid": 1,
+                    "blockNumber": 92874106,
+                    "txHash": "0x..."
+                }
+            ],
+            "pockets": [
+                {
+                    "address": "0x648D...",
+                    "createdBlock": 92873999,
+                    "txHash": "0x..."
+                }
+            ],
+            "executions": [
+                {
+                    "merchant": "0x2f13...",
+                    "event": "Purchased",
+                    "blockNumber": 92874200,
+                    "txHash": "0x..."
+                }
+            ]
+        }
+    },
+    "pocketOwner": {
+        "0x648D...": "0xUserAddress"
+    }
+}

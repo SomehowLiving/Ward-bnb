@@ -8,7 +8,7 @@ import { requireAddress, ValidationError } from "../utils/validate.js";
 const router = express.Router();
 
 const BATCH_BLOCKS = Number(process.env.ACTIVITY_SCAN_BATCH || 500);
-const FROM_BLOCK = Number(process.env.DEPLOYMENT_BLOCK || 0);
+const LOOKBACK_BLOCKS = Number(process.env.ACTIVITY_LOOKBACK_BLOCKS || 92800000);
 
 const vaultEventAbi = [
   "event CreditRequested(bytes32 indexed requestId,address indexed user,address indexed merchant,address pocket,uint256 principal,uint256 installmentAmount,uint256 totalInstallments,uint256 interval,uint256 nextDueDate)",
@@ -38,6 +38,23 @@ async function getLogsChunked(baseFilter, fromBlock, toBlock, step = BATCH_BLOCK
   return logs;
 }
 
+async function safeGetLogs(baseFilter, fromBlock, toBlock) {
+  try {
+    return await getLogsChunked(baseFilter, fromBlock, toBlock);
+  } catch {
+    return [];
+  }
+}
+
+function resolveFromBlock(latestBlock) {
+  const configured = process.env.DEPLOYMENT_BLOCK;
+  if (configured !== undefined && configured !== "") {
+    const n = Number(configured);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return Math.max(0, latestBlock - LOOKBACK_BLOCKS);
+}
+
 async function timestampMapForLogs(logs) {
   const map = new Map();
   const uniqueBlocks = [...new Set(logs.map((l) => Number(l.blockNumber)))];
@@ -62,32 +79,51 @@ router.get("/credits/:user", async (req, res) => {
       "CreditRequested(bytes32,address,address,address,uint256,uint256,uint256,uint256,uint256)"
     );
 
-    const logs = await getLogsChunked(
-      { address: await vault.getAddress(), topics: [topic, null, userTopic] },
-      FROM_BLOCK,
+    const fromBlock = resolveFromBlock(latest);
+    // const logs = await safeGetLogs(
+    //   { address: await vault.getAddress(), topics: [topic, null, userTopic] },
+    //   fromBlock,
+    //   latest
+    // );
+    const logs = await safeGetLogs(
+      { address: await vault.getAddress(), topics: [topic] },
+      fromBlock,
       latest
     );
+    console.log("logs:", logs);
+    console.log("total CreditRequested logs found:", logs.length);
     const tsMap = await timestampMapForLogs(logs);
+    console.log("latest:", latest);
+    console.log("fromBlock:", fromBlock);
+    console.log("vault:", await vault.getAddress());
 
     const items = logs
       .map((log) => {
-        const parsed = vaultIface.parseLog(log);
-        return {
-          requestId: parsed.args.requestId,
-          merchant: parsed.args.merchant,
-          amount: parsed.args.principal.toString(),
-          pocket: parsed.args.pocket,
-          dueDate: parsed.args.nextDueDate.toString(),
-          txHash: log.transactionHash,
-          blockNumber: Number(log.blockNumber),
-          timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
-        };
+        try {
+          const parsed = vaultIface.parseLog(log);
+          return {
+            requestId: parsed.args.requestId,
+            merchant: parsed.args.merchant,
+            amount: parsed.args.principal.toString(),
+            pocket: parsed.args.pocket,
+            dueDate: parsed.args.nextDueDate.toString(),
+            txHash: log.transactionHash,
+            blockNumber: Number(log.blockNumber),
+            timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
+          };
+        } catch {
+          return null;
+        }
       })
+      .filter(Boolean)
       .sort((a, b) => b.blockNumber - a.blockNumber);
 
     res.json({ user: ethers.getAddress(user), items });
   } catch (err) {
     const status = isValidationError(err) ? 400 : 500;
+    if (!isValidationError(err)) {
+      return res.json({ user: req.params.user, items: [], warning: decodeEthersError(err) });
+    }
     res.status(status).json({ error: decodeEthersError(err) });
   }
 });
@@ -102,29 +138,38 @@ router.get("/repayments/:user", async (req, res) => {
     const userTopic = ethers.zeroPadValue(ethers.getAddress(user), 32);
     const topic = ethers.id("InstallmentRepaid(bytes32,address,uint256,uint256,uint256,uint256)");
 
-    const logs = await getLogsChunked(
+    const fromBlock = resolveFromBlock(latest);
+    const logs = await safeGetLogs(
       { address: await vault.getAddress(), topics: [topic, null, userTopic] },
-      FROM_BLOCK,
+      fromBlock,
       latest
     );
     const tsMap = await timestampMapForLogs(logs);
 
     const items = logs
       .map((log) => {
-        const parsed = vaultIface.parseLog(log);
-        return {
-          requestId: parsed.args.requestId,
-          amount: parsed.args.amount.toString(),
-          txHash: log.transactionHash,
-          blockNumber: Number(log.blockNumber),
-          timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
-        };
+        try {
+          const parsed = vaultIface.parseLog(log);
+          return {
+            requestId: parsed.args.requestId,
+            amount: parsed.args.amount.toString(),
+            txHash: log.transactionHash,
+            blockNumber: Number(log.blockNumber),
+            timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
+          };
+        } catch {
+          return null;
+        }
       })
+      .filter(Boolean)
       .sort((a, b) => b.blockNumber - a.blockNumber);
 
     res.json({ user: ethers.getAddress(user), items });
   } catch (err) {
     const status = isValidationError(err) ? 400 : 500;
+    if (!isValidationError(err)) {
+      return res.json({ user: req.params.user, items: [], warning: decodeEthersError(err) });
+    }
     res.status(status).json({ error: decodeEthersError(err) });
   }
 });
@@ -139,30 +184,39 @@ router.get("/pockets/:user", async (req, res) => {
     const latest = await provider.getBlockNumber();
     const topic = ethers.id("PocketDeployed(address,address)");
 
-    const logs = await getLogsChunked(
+    const fromBlock = resolveFromBlock(latest);
+    const logs = await safeGetLogs(
       { address: factoryAddress, topics: [topic] },
-      FROM_BLOCK,
+      fromBlock,
       latest
     );
     const tsMap = await timestampMapForLogs(logs);
 
     const items = logs
       .map((log) => {
-        const parsed = factoryIface.parseLog(log);
-        return {
-          pocket: parsed.args.pocket,
-          owner: parsed.args.owner,
-          txHash: log.transactionHash,
-          blockNumber: Number(log.blockNumber),
-          timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
-        };
+        try {
+          const parsed = factoryIface.parseLog(log);
+          return {
+            pocket: parsed.args.pocket,
+            owner: parsed.args.owner,
+            txHash: log.transactionHash,
+            blockNumber: Number(log.blockNumber),
+            timestamp: tsMap.get(Number(log.blockNumber)) ?? 0
+          };
+        } catch {
+          return null;
+        }
       })
+      .filter(Boolean)
       .filter((x) => ethers.getAddress(x.owner) === normalizedUser)
       .sort((a, b) => b.blockNumber - a.blockNumber);
 
     res.json({ user: normalizedUser, items });
   } catch (err) {
     const status = isValidationError(err) ? 400 : 500;
+    if (!isValidationError(err)) {
+      return res.json({ user: req.params.user, items: [], warning: decodeEthersError(err) });
+    }
     res.status(status).json({ error: decodeEthersError(err) });
   }
 });
@@ -183,8 +237,8 @@ router.get("/merchant/:merchant", async (req, res) => {
     const purchasedTopic = ethers.id("Purchased(address,uint256)");
     const attackTopic = ethers.id("AttackAttempted(address,uint256,bool,bytes)");
     const [purchaseLogs, attackLogs] = await Promise.all([
-      getLogsChunked({ address: normalizedMerchant, topics: [purchasedTopic] }, FROM_BLOCK, latest),
-      getLogsChunked({ address: normalizedMerchant, topics: [attackTopic] }, FROM_BLOCK, latest)
+      getLogsChunked({ address: normalizedMerchant, topics: [purchasedTopic] }, resolveFromBlock(latest), latest),
+      getLogsChunked({ address: normalizedMerchant, topics: [attackTopic] }, resolveFromBlock(latest), latest)
     ]);
 
     let totalExecutions = 0;
@@ -230,8 +284,8 @@ router.get("/executions/:user", async (req, res) => {
     const logsByMerchant = await Promise.all(
       merchants.map(async (merchant) => {
         const [purchaseLogs, attackLogs] = await Promise.all([
-          getLogsChunked({ address: merchant, topics: [purchasedTopic] }, FROM_BLOCK, latest),
-          getLogsChunked({ address: merchant, topics: [attackTopic] }, FROM_BLOCK, latest)
+          getLogsChunked({ address: merchant, topics: [purchasedTopic] }, resolveFromBlock(latest), latest),
+          getLogsChunked({ address: merchant, topics: [attackTopic] }, resolveFromBlock(latest), latest)
         ]);
         return purchaseLogs.concat(attackLogs);
       })
@@ -268,3 +322,131 @@ router.get("/executions/:user", async (req, res) => {
 });
 
 export default router;
+
+// import express from "express";
+// import { ethers } from "ethers";
+// import { getVaultContract } from "../config/chain.js";
+// import { requireAddress, ValidationError } from "../utils/validate.js";
+// import { getActivityCacheSnapshot, syncActivityCache } from "../utils/activityCache.js";
+
+// const router = express.Router();
+// let lastSyncMs = 0;
+// const SYNC_DEBOUNCE_MS = Number(process.env.ACTIVITY_SYNC_DEBOUNCE_MS || 15000);
+
+// function isValidationError(err) {
+//   return err instanceof ValidationError || err?.name === "ValidationError";
+// }
+
+// function userKey(user) {
+//   return ethers.getAddress(user).toLowerCase();
+// }
+
+// async function syncIfStale(force = false) {
+//   const now = Date.now();
+//   if (!force && now - lastSyncMs < SYNC_DEBOUNCE_MS) return;
+//   await syncActivityCache();
+//   lastSyncMs = now;
+// }
+
+// router.post("/sync", async (_req, res) => {
+//   try {
+//     const cache = await syncActivityCache();
+//     lastSyncMs = Date.now();
+//     res.json({
+//       ok: true,
+//       lastScannedBlock: cache.lastScannedBlock,
+//       users: Object.keys(cache.users ?? {}).length
+//     });
+//   } catch (err) {
+//     res.status(500).json({ ok: false, error: err?.message || String(err) });
+//   }
+// });
+
+// router.get("/credits/:user", async (req, res) => {
+//   try {
+//     requireAddress(req.params.user, "user");
+//     await syncIfStale();
+//     const cache = getActivityCacheSnapshot();
+//     const items = cache.users?.[userKey(req.params.user)]?.credits ?? [];
+//     res.json({ user: ethers.getAddress(req.params.user), items });
+//   } catch (err) {
+//     const status = isValidationError(err) ? 400 : 500;
+//     res.status(status).json({ error: err?.message || String(err) });
+//   }
+// });
+
+// router.get("/repayments/:user", async (req, res) => {
+//   try {
+//     requireAddress(req.params.user, "user");
+//     await syncIfStale();
+//     const cache = getActivityCacheSnapshot();
+//     const items = cache.users?.[userKey(req.params.user)]?.repayments ?? [];
+//     res.json({ user: ethers.getAddress(req.params.user), items });
+//   } catch (err) {
+//     const status = isValidationError(err) ? 400 : 500;
+//     res.status(status).json({ error: err?.message || String(err) });
+//   }
+// });
+
+// router.get("/pockets/:user", async (req, res) => {
+//   try {
+//     requireAddress(req.params.user, "user");
+//     await syncIfStale();
+//     const cache = getActivityCacheSnapshot();
+//     const items = cache.users?.[userKey(req.params.user)]?.pockets ?? [];
+//     res.json({ user: ethers.getAddress(req.params.user), items });
+//   } catch (err) {
+//     const status = isValidationError(err) ? 400 : 500;
+//     res.status(status).json({ error: err?.message || String(err) });
+//   }
+// });
+
+// router.get("/executions/:user", async (req, res) => {
+//   try {
+//     requireAddress(req.params.user, "user");
+//     await syncIfStale();
+//     const cache = getActivityCacheSnapshot();
+//     const items = cache.users?.[userKey(req.params.user)]?.executions ?? [];
+//     res.json({ user: ethers.getAddress(req.params.user), items });
+//   } catch (err) {
+//     const status = isValidationError(err) ? 400 : 500;
+//     res.status(status).json({ error: err?.message || String(err) });
+//   }
+// });
+
+// router.get("/merchant/:merchant", async (req, res) => {
+//   try {
+//     const merchant = ethers.getAddress(req.params.merchant);
+//     await syncIfStale();
+//     const cache = getActivityCacheSnapshot();
+
+//     const vault = getVaultContract();
+//     const [totalFlags, blocked] = await Promise.all([
+//       vault.merchantFlagCount(merchant),
+//       vault.merchantBlocked(merchant)
+//     ]);
+
+//     let totalExecutions = 0;
+//     let totalDrainedAttempts = 0;
+//     for (const userStore of Object.values(cache.users ?? {})) {
+//       for (const exec of userStore.executions ?? []) {
+//         if (ethers.getAddress(exec.merchant) !== merchant) continue;
+//         totalExecutions += 1;
+//         if (exec.event === "AttackAttempted") totalDrainedAttempts += 1;
+//       }
+//     }
+
+//     res.json({
+//       merchant,
+//       totalFlags: totalFlags.toString(),
+//       blocked,
+//       totalExecutions,
+//       totalDrainedAttempts
+//     });
+//   } catch (err) {
+//     const status = isValidationError(err) ? 400 : 500;
+//     res.status(status).json({ error: err?.message || String(err) });
+//   }
+// });
+
+// export default router;
