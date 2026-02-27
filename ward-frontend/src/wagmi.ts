@@ -1,6 +1,6 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { http } from 'wagmi';
-import { sepolia } from 'wagmi/chains';
+import { bscTestnet } from 'wagmi/chains';
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
@@ -11,8 +11,8 @@ if (!projectId) {
 export const config = getDefaultConfig({
   appName: 'WalletGuard',
   projectId,
-  chains: [sepolia],
+  chains: [bscTestnet],
   transports: {
-    [sepolia.id]: http(import.meta.env.VITE_RPC_URL),
+    [bscTestnet.id]: http(import.meta.env.VITE_RPC_URL),
   },
 });

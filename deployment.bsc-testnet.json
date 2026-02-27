@@ -1,0 +1,29 @@
+{
+  "network": "bsc-testnet",
+  "chainId": 97,
+  "rpc": "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
+
+  "contracts": {
+    "PocketFactory": "0xB0019c4f6e89899CAFc586e3BCf105717346d65F",
+    "PocketController": "0x5DfeeA17F14E1ea2f93B45fF91e9E57a8e393245",
+    "CollateralVault": "0xf696d0f64631871DED01b1212fA0b9402525a39E",
+    "MerchantGood": "0x2f133abe75C46CD43C81358441512990CF39B48E",
+    "MerchantMalicious": "0xb79C03A81E31B289bD9D40BE87d3f434A1B6B6dc"
+  },
+
+  "governance": {
+    "vaultOwner": "0x14e0D556fFe746BC5ab12902423bDa63DeA08Bf9",
+    "treasury": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8"
+  },
+
+  "feeBps": {
+    "tier2_safe": 200,
+    "tier4_provisional": 300,
+    "tier3_risky": 800
+  },
+
+  "config": {
+    "ltvPercent": 70,
+    "gasReserveFunding": "100000000000000000"
+  }
+}

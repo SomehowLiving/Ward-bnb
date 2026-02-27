@@ -11,6 +11,7 @@ import tokenRoutes from "./routes/token.js";
 import metaRoutes from "./routes/meta.js";
 import creditRoutes from "./routes/credit.js";
 import merchantRoutes from "./routes/merchant.js";
+import activityRoutes from "./routes/activity.js";
 import { requireAddress } from "./utils/validate.js";
 import { controller, provider } from "./config/chain.js";
 import { pocketRegistry } from "./utils/pocketRegistry.js";
@@ -81,6 +82,7 @@ app.use("/api/credit", creditRoutes);
  * (flag status + owner blocklist operations)
  */
 app.use("/api/merchant", merchantRoutes);
+app.use("/api/activity", activityRoutes);
 
 /**
  * System meta, health, metrics
@@ -238,7 +240,23 @@ app.use((err, req, res, _next) => {
 /* -------------------------------------------------------------------------- */
 
 const PORT = process.env.PORT || 3000;
+const EXPECTED_CHAIN_ID = Number(process.env.CHAIN_ID || 97);
 
-app.listen(PORT, () => {
-  console.log(`Pocket backend running on :${PORT}`);
+async function startServer() {
+  const network = await provider.getNetwork();
+  const actualChainId = Number(network.chainId);
+  if (actualChainId !== EXPECTED_CHAIN_ID) {
+    throw new Error(
+      `RPC chainId mismatch. Expected ${EXPECTED_CHAIN_ID}, got ${actualChainId}. Check RPC_URL/CHAIN_ID env.`
+    );
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Pocket backend running on :${PORT} (chainId=${actualChainId})`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error("[startup] failed", err?.message || err);
+  process.exit(1);
 });

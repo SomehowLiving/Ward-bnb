@@ -6,12 +6,16 @@ import "forge-std/console2.sol";
 
 import "../src/PocketFactory.sol";
 import "../src/PocketController.sol";
+import "../src/CollateralVault.sol";
+import "../src/MerchantGood.sol";
+import "../src/MerchantMalicious.sol";
 
 contract Deploy is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address treasury = vm.envAddress("TREASURY_ADDRESS");
         uint256 fundingAmount = vm.envOr("FUNDING_AMOUNT", uint256(0.1 ether));
+        address blockMerchantAddr = vm.envOr("BLOCK_MERCHANT", address(0));
 
         require(treasury != address(0), "TREASURY_ZERO");
         require(deployerKey != 0, "PRIVATE_KEY_ZERO");
@@ -40,20 +44,41 @@ contract Deploy is Script {
         require(fundSuccess, "FUNDING_FAILED");
         console2.log("Controller funded with", fundingAmount);
 
+        // 4. Deploy Vault
+        CollateralVault vault = new CollateralVault(address(controller));
+        console2.log("CollateralVault deployed to:", address(vault));
+        console2.log("CollateralVault owner:", vault.owner());
+
+        // 5. Deploy demo merchants
+        MerchantGood goodMerchant = new MerchantGood();
+        MerchantMalicious maliciousMerchant = new MerchantMalicious();
+        console2.log("MerchantGood deployed to:", address(goodMerchant));
+        console2.log("MerchantMalicious deployed to:", address(maliciousMerchant));
+
+        // 6. Optional governance block at deploy-time
+        if (blockMerchantAddr != address(0)) {
+            vault.blockMerchant(blockMerchantAddr);
+            console2.log("Blocked merchant at deploy:", blockMerchantAddr);
+        }
+
         vm.stopBroadcast();
 
-        // 4. Log fee tiers
+        // 7. Log fee tiers
         console2.log("\n--- Fee Tiers (bps) ---");
         console2.log("Safe (Tier 2):", controller.feeBps(2));
         console2.log("Provisional (Tier 4):", controller.feeBps(4));
         console2.log("Risky (Tier 3):", controller.feeBps(3));
 
-        // 5. Save addresses for frontend
+        // 8. Save addresses for backend/frontend
         console2.log("\n--- Frontend Config ---");
         console2.log("{");
         console2.log('  "factory": "', address(factory), '",');
         console2.log('  "controller": "', address(controller), '",');
-        console2.log('  "treasury": "', treasury, '"');
+        console2.log('  "vault": "', address(vault), '",');
+        console2.log('  "merchantGood": "', address(goodMerchant), '",');
+        console2.log('  "merchantMalicious": "', address(maliciousMerchant), '",');
+        console2.log('  "treasury": "', treasury, '",');
+        console2.log('  "vaultOwner": "', vault.owner(), '"');
         console2.log("}");
     }
 }
