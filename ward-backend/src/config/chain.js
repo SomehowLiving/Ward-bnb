@@ -22,6 +22,12 @@ const ControllerABI = JSON.parse(
         "utf8"
     )
 );
+const CollateralVaultABI = JSON.parse(
+    fs.readFileSync(
+        path.resolve(__dirname, "../abi/CollateralVault.json"),
+        "utf8"
+    )
+);
 const required = ["RPC_URL", "CONTROLLER_PRIVATE_KEY", "CONTROLLER_ADDRESS"];
 for (const key of required) {
     if (!process.env[key]) {
@@ -41,3 +47,15 @@ export const controller = new ethers.Contract(
     ControllerABI.abi,
     controllerSigner
 );
+
+export function getVaultContract() {
+    const vaultAddress = process.env.COLLATERAL_VAULT_ADDRESS;
+    if (!vaultAddress) {
+        throw new Error("Missing required environment variable: COLLATERAL_VAULT_ADDRESS");
+    }
+    return new ethers.Contract(
+        vaultAddress,
+        CollateralVaultABI.abi,
+        controllerSigner
+    );
+}

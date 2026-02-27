@@ -18,13 +18,14 @@ contract HoneypotToken is ERC20 {
     }
     
     /// @notice Blocks all transfers (honeypot logic)
-    function _beforeTokenTransfer(
-    address from,
-    address to,
-    uint256
-    ) internal pure override {
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override {
         // Allows minting (from == 0) and burning (to == 0)
         if (from == address(0) || to == address(0)) {
+            super._update(from, to, value);
             return;
         }
         revert("HONEYPOT: Cannot transfer");

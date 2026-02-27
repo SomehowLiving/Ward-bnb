@@ -10,6 +10,15 @@ All requests and responses use JSON.
 
 ---
 
+## Collateral Track Notes
+
+* Risk engine routes are disabled in the collateral track.
+* `POST /api/pocket/sweep` and `POST /api/pocket/fee` are disabled.
+* Credit source of truth is on-chain `CollateralVault`.
+* Required env for credit routes: `COLLATERAL_VAULT_ADDRESS`.
+
+---
+
 ## Authentication / Signing Model
 
 * Transactions are authorized via **EIP-712 signatures** created by the Pocket owner.
@@ -235,6 +244,105 @@ Same parameters as `/exec`, skips simulation.
 ```json
 {
   "txHash": "0xTxHash"
+}
+```
+
+---
+
+## Credit Orchestration
+
+### Get Credit State
+
+**GET** `/api/credit/state/:user`
+
+**Response**
+
+```json
+{
+  "user": "0xUser",
+  "deposited": "10000000000000000000",
+  "borrowed": "1000000000000000000",
+  "availableCredit": "6000000000000000000"
+}
+```
+
+### Get Credit Request State
+
+**GET** `/api/credit/request/:requestId`
+
+**Response**
+
+```json
+{
+  "requestId": "0x...",
+  "exists": true,
+  "borrower": "0xUser",
+  "amount": "1000000000000000000",
+  "dueDate": "1735603200",
+  "repaid": false,
+  "pocket": "0xPocket"
+}
+```
+
+### Request Credit
+
+**POST** `/api/credit/request`
+
+**Body**
+
+```json
+{
+  "user": "0xUserAddress",
+  "merchant": "0xMerchantAddress",
+  "amount": "1000000000000000000",
+  "duration": "2592000",
+  "salt": "123"
+}
+```
+
+**Response**
+
+```json
+{
+  "requestId": "0x...",
+  "pocket": "0xPocket",
+  "dueDate": "1735603200",
+  "txHash": "0xTxHash"
+}
+```
+
+### Repay Credit
+
+**POST** `/api/credit/repay`
+
+**Body**
+
+```json
+{
+  "requestId": "0x...",
+  "user": "0xUserAddress"
+}
+```
+
+**Response**
+
+```json
+{
+  "requestId": "0x...",
+  "repaidAmount": "1000000000000000000",
+  "txHash": "0xTxHash"
+}
+```
+
+### Liquidate Defaulted Credit
+
+**POST** `/api/credit/liquidate`
+
+**Body**
+
+```json
+{
+  "requestId": "0x..."
 }
 ```
 

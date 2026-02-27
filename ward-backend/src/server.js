@@ -7,9 +7,9 @@ import path from "path";
 import pocketRoutes from "./routes/pocket.js";
 import controllerRoutes from "./routes/controller.js";
 import verifyRoutes from "./routes/verify.js";
-import riskRoutes from "./routes/risk.js";
 import tokenRoutes from "./routes/token.js";
 import metaRoutes from "./routes/meta.js";
+import creditRoutes from "./routes/credit.js";
 import { requireAddress } from "./utils/validate.js";
 import { controller, provider } from "./config/chain.js";
 import { pocketRegistry } from "./utils/pocketRegistry.js";
@@ -64,16 +64,16 @@ app.use("/api/controller", controllerRoutes);
 app.use("/api/verify", verifyRoutes);
 
 /**
- * Risk analysis & simulation
- * (advisory only)
- */
-app.use("/api/risk", riskRoutes);
-
-/**
  * Token metadata
  * (read-only)
  */
 app.use("/api/token", tokenRoutes);
+
+/**
+ * Credit orchestration
+ * (vault-aware)
+ */
+app.use("/api/credit", creditRoutes);
 
 /**
  * System meta, health, metrics

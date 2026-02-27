@@ -62,7 +62,7 @@ contract PocketTest is Test {
 
 function _signExec(
     address pocketAddr,
-    address target,
+    address targetAddr,
     bytes memory data,
     uint256 nonce,
     uint256 expiry
@@ -77,7 +77,7 @@ function _signExec(
         abi.encode(
             EXEC_TYPEHASH,
             pocketAddr,
-            target,
+            targetAddr,
             keccak256(data),
             nonce,
             expiry
