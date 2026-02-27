@@ -36,6 +36,12 @@ export type ExecuteParams = {
   signature: string;
 };
 
+export type MerchantStatus = {
+  merchant: string;
+  flagCount: string;
+  blocked: boolean;
+};
+
 function requireVaultAddress() {
   if (!VAULT_ADDRESS || !ethers.isAddress(VAULT_ADDRESS)) {
     throw new Error("Missing or invalid VITE_VAULT_ADDRESS");
@@ -64,6 +70,13 @@ export async function getCreditRequestState(requestId: string): Promise<CreditRe
   const res = await fetch(API.credit.request(requestId));
   const data = await res.json();
   if (!res.ok) throw new Error(extractError(data, "Failed to fetch request state"));
+  return data;
+}
+
+export async function getMerchantStatus(merchantAddress: string): Promise<MerchantStatus> {
+  const res = await fetch(API.merchant.get(merchantAddress));
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to fetch merchant status"));
   return data;
 }
 
