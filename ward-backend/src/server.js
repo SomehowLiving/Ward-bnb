@@ -242,21 +242,21 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 3000;
 const EXPECTED_CHAIN_ID = Number(process.env.CHAIN_ID || 97);
 
-async function startServer() {
-  const network = await provider.getNetwork();
-  const actualChainId = Number(network.chainId);
-  if (actualChainId !== EXPECTED_CHAIN_ID) {
-    throw new Error(
-      `RPC chainId mismatch. Expected ${EXPECTED_CHAIN_ID}, got ${actualChainId}. Check RPC_URL/CHAIN_ID env.`
+app.listen(PORT, async () => {
+  console.log(`Pocket backend running on :${PORT}`);
+  try {
+    const network = await provider.getNetwork();
+    const actualChainId = Number(network.chainId);
+    if (actualChainId !== EXPECTED_CHAIN_ID) {
+      console.error(
+        `[startup] RPC chainId mismatch. Expected ${EXPECTED_CHAIN_ID}, got ${actualChainId}. Check RPC_URL/CHAIN_ID env.`
+      );
+      return;
+    }
+    console.log(`[startup] RPC connected. chainId=${actualChainId}`);
+  } catch (err) {
+    console.error(
+      `[startup] RPC connectivity check failed: ${err?.message || err}. Server is running; requests may fail until RPC is reachable.`
     );
   }
-
-  app.listen(PORT, () => {
-    console.log(`Pocket backend running on :${PORT} (chainId=${actualChainId})`);
-  });
-}
-
-startServer().catch((err) => {
-  console.error("[startup] failed", err?.message || err);
-  process.exit(1);
 });

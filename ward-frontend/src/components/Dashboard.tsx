@@ -3,11 +3,23 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId } from "wagmi";
 import { ethers } from "ethers";
 import {
+  ActivityCredit,
+  CreditRequestItem,
+  ActivityExecution,
+  ActivityPocket,
+  ActivityRepayment,
   depositCollateral,
+  getCreditActivity,
+  getCreditRequests,
   getCreditRequestState,
   getCreditState,
+  getExecutionActivity,
+  getMerchantActivity,
   getMerchantStatus,
   getPocketNextNonce,
+  getPocketActivity,
+  getRepaymentActivity,
+  MerchantActivity,
   MerchantStatus,
   relayPocketExecution,
   repayOnVault,
@@ -27,6 +39,9 @@ type RequestInfo = {
   nextDueDate: string;
 };
 const EXPECTED_CHAIN_ID = 97;
+const BSC_TESTNET_TX_BASE = "https://testnet.bscscan.com/tx/";
+const GOOD_MERCHANT = import.meta.env.VITE_MERCHANT_GOOD_ADDRESS;
+const MALICIOUS_MERCHANT = import.meta.env.VITE_MERCHANT_MALICIOUS_ADDRESS;
 
 type RawCreditState = {
   user: string;
@@ -86,6 +101,11 @@ function formatAddress(address?: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function formatTxHash(hash?: string) {
+  if (!hash) return "-";
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
 function mapCreditToRaw(state: Awaited<ReturnType<typeof getCreditState>>): RawCreditState {
   return {
     user: state.user,
@@ -140,7 +160,13 @@ export default function Dashboard() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [merchantStatus, setMerchantStatus] = useState<MerchantStatus | null>(null);
+  const [merchantActivity, setMerchantActivity] = useState<MerchantActivity | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [creditActivity, setCreditActivity] = useState<ActivityCredit[]>([]);
+  const [creditRequests, setCreditRequests] = useState<CreditRequestItem[]>([]);
+  const [repaymentActivity, setRepaymentActivity] = useState<ActivityRepayment[]>([]);
+  const [pocketActivity, setPocketActivity] = useState<ActivityPocket[]>([]);
+  const [executionActivity, setExecutionActivity] = useState<ActivityExecution[]>([]);
 
   const [depositAmount, setDepositAmount] = useState("1");
   const [merchantAddress, setMerchantAddress] = useState("");
@@ -149,8 +175,6 @@ export default function Dashboard() {
   const [intervalSeconds, setIntervalSeconds] = useState("604800");
   const [salt, setSalt] = useState(String(Date.now()));
 
-  const [executeTarget, setExecuteTarget] = useState("");
-  const [executeCalldata, setExecuteCalldata] = useState("0x");
   const [executeExpiryOffset, setExecuteExpiryOffset] = useState("600");
 
   useEffect(() => {
@@ -160,7 +184,7 @@ export default function Dashboard() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const s = await provider.getSigner();
       setSigner(s);
-      await refreshCredit(address);
+      await Promise.all([refreshCredit(address), refreshActivity(address)]);
     };
 
     void init();
@@ -169,10 +193,22 @@ export default function Dashboard() {
   useEffect(() => {
     if (!ethers.isAddress(merchantAddress)) {
       setMerchantStatus(null);
+      setMerchantActivity(null);
       return;
     }
     void safeRun(() => refreshMerchantStatus(merchantAddress));
   }, [merchantAddress]);
+
+  useEffect(() => {
+    if (activeRequest || creditRequests.length === 0) return;
+    const next = creditRequests.find((x) => !x.closed && !x.defaulted) ?? creditRequests[0];
+    const req = { requestId: next.requestId, pocket: next.pocket, nextDueDate: next.nextDueDate };
+    setActiveRequest(req);
+    setMerchantAddress(next.merchant);
+    void safeRun(async () => {
+      await Promise.all([refreshRequest(next.requestId), refreshMerchantStatus(next.merchant)]);
+    });
+  }, [creditRequests, activeRequest]);
 
   const creditLabel = useMemo(() => {
     if (!creditState) return "Disconnected";
@@ -202,6 +238,21 @@ export default function Dashboard() {
     setRequestState(mapRequestToRaw(state));
   }
 
+  async function refreshActivity(user: string) {
+    const [requests, credits, repayments, pockets, executions] = await Promise.allSettled([
+      getCreditRequests(user),
+      getCreditActivity(user),
+      getRepaymentActivity(user),
+      getPocketActivity(user),
+      getExecutionActivity(user)
+    ]);
+    setCreditRequests(requests.status === "fulfilled" ? requests.value : []);
+    setCreditActivity(credits.status === "fulfilled" ? credits.value : []);
+    setRepaymentActivity(repayments.status === "fulfilled" ? repayments.value : []);
+    setPocketActivity(pockets.status === "fulfilled" ? pockets.value : []);
+    setExecutionActivity(executions.status === "fulfilled" ? executions.value : []);
+  }
+
   async function onDeposit(e: React.FormEvent) {
     e.preventDefault();
     if (!signer || !address) return;
@@ -211,7 +262,7 @@ export default function Dashboard() {
     setError("");
     setStatus("Submitting deposit...");
     await depositCollateral(signer, depositAmount);
-    await refreshCredit(address);
+    await Promise.all([refreshCredit(address), refreshActivity(address)]);
     setStatus("Deposit confirmed.");
   }
 
@@ -236,9 +287,8 @@ export default function Dashboard() {
     );
 
     setActiveRequest(created);
-    setExecuteTarget(merchantAddress);
 
-    await Promise.all([refreshCredit(address), refreshRequest(created.requestId)]);
+    await Promise.all([refreshCredit(address), refreshRequest(created.requestId), refreshActivity(address)]);
     setStatus("Credit requested and pocket created.");
   }
 
@@ -249,25 +299,40 @@ export default function Dashboard() {
     }
     const state = await getMerchantStatus(merchant);
     setMerchantStatus(state);
+    const activity = await getMerchantActivity(merchant);
+    setMerchantActivity(activity);
   }
 
-  async function onExecute(e: React.FormEvent) {
-    e.preventDefault();
+  async function resumeRequestFromActivity(item: ActivityCredit) {
+    const request = {
+      requestId: item.requestId,
+      pocket: item.pocket,
+      nextDueDate: item.dueDate
+    };
+    setActiveRequest(request);
+    setMerchantAddress(item.merchant);
+    await Promise.all([refreshRequest(item.requestId), refreshMerchantStatus(item.merchant)]);
+  }
+
+  async function executeForMerchant(target: string) {
     if (!signer || !activeRequest) return;
     if (chainId !== EXPECTED_CHAIN_ID) {
       throw new Error(`Wrong network: switch to BSC Testnet (${EXPECTED_CHAIN_ID})`);
     }
+    if (!ethers.isAddress(target)) throw new Error("Invalid merchant target");
 
     setError("");
     setStatus("Preparing relayed execution...");
 
+    const iface = new ethers.Interface(["function purchase()"]);
+    const calldata = iface.encodeFunctionData("purchase");
     const nonce = await getPocketNextNonce(activeRequest.pocket);
     const expiry = BigInt(Math.floor(Date.now() / 1000) + Number(executeExpiryOffset));
     const signature = await signExecIntent(
       signer,
       activeRequest.pocket,
-      executeTarget,
-      executeCalldata,
+      target,
+      calldata,
       nonce,
       expiry,
       chainId
@@ -275,15 +340,19 @@ export default function Dashboard() {
 
     const result = await relayPocketExecution({
       pocket: activeRequest.pocket,
-      target: executeTarget,
-      data: executeCalldata,
+      target,
+      data: calldata,
       nonce: nonce.toString(),
       expiry: expiry.toString(),
       signature
     });
 
     setStatus(`Execution relayed: ${result.txHash}`);
-    await refreshRequest(activeRequest.requestId);
+    if (address) {
+      await Promise.all([refreshRequest(activeRequest.requestId), refreshActivity(address)]);
+    } else {
+      await refreshRequest(activeRequest.requestId);
+    }
   }
 
   async function onRepay() {
@@ -297,7 +366,7 @@ export default function Dashboard() {
     setError("");
     setStatus("Submitting repayment...");
     await repayOnVault(signer, requestState.requestId, requestState.installmentDue.toString());
-    await Promise.all([refreshCredit(address), refreshRequest(requestState.requestId)]);
+    await Promise.all([refreshCredit(address), refreshRequest(requestState.requestId), refreshActivity(address)]);
     setStatus("Repayment confirmed.");
   }
 
@@ -392,12 +461,21 @@ export default function Dashboard() {
 
       <section className="card">
         <h2>Execute (Relayed)</h2>
-        <form onSubmit={(e) => safeRun(() => onExecute(e))}>
-          <input value={executeTarget} onChange={(e) => setExecuteTarget(e.target.value)} placeholder="Target address" />
-          <textarea value={executeCalldata} onChange={(e) => setExecuteCalldata(e.target.value)} placeholder="Calldata 0x..." rows={4} />
-          <input value={executeExpiryOffset} onChange={(e) => setExecuteExpiryOffset(e.target.value)} placeholder="Expiry offset sec" />
-          <button type="submit" disabled={!activeRequest || !signer}>Sign + Relay Execute</button>
-        </form>
+        <input value={executeExpiryOffset} onChange={(e) => setExecuteExpiryOffset(e.target.value)} placeholder="Expiry offset sec" />
+        <div><strong>Good Merchant:</strong> {GOOD_MERCHANT || "-"}</div>
+        <div><strong>Malicious Merchant:</strong> {MALICIOUS_MERCHANT || "-"}</div>
+        <button
+          onClick={() => GOOD_MERCHANT && safeRun(() => executeForMerchant(GOOD_MERCHANT))}
+          disabled={!activeRequest || !signer || !GOOD_MERCHANT}
+        >
+          Execute Good Merchant
+        </button>
+        <button
+          onClick={() => MALICIOUS_MERCHANT && safeRun(() => executeForMerchant(MALICIOUS_MERCHANT))}
+          disabled={!activeRequest || !signer || !MALICIOUS_MERCHANT}
+        >
+          Execute Malicious Merchant
+        </button>
       </section>
 
       <section className="card">
@@ -408,6 +486,126 @@ export default function Dashboard() {
         >
           Repay Installment ({requestView?.installmentDue ?? "-"})
         </button>
+      </section>
+
+      <section className="card">
+        <h2>Activity</h2>
+        <button onClick={() => address && safeRun(() => refreshActivity(address))}>Refresh Activity</button>
+
+        <h3>Recent Credit Requests</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Merchant</th>
+              <th>Amount</th>
+              <th>Due</th>
+              <th>Tx</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {creditRequests.slice(0, 10).map((item) => (
+              <tr key={item.requestId}>
+                <td>{item.requestId.slice(0, 10)}...</td>
+                <td>{formatAddress(item.merchant)}</td>
+                <td>{formatTbnb(BigInt(item.principal))}</td>
+                <td>{formatDateTime(BigInt(item.nextDueDate))}</td>
+                <td><a href={`${BSC_TESTNET_TX_BASE}${item.createdTxHash}`} target="_blank" rel="noreferrer">{formatTxHash(item.createdTxHash)}</a></td>
+                <td>
+                  <button
+                    onClick={() =>
+                      safeRun(() =>
+                        resumeRequestFromActivity({
+                          requestId: item.requestId,
+                          merchant: item.merchant,
+                          amount: item.principal,
+                          pocket: item.pocket,
+                          dueDate: item.nextDueDate,
+                          txHash: item.createdTxHash,
+                          blockNumber: item.createdBlockNumber,
+                          timestamp: item.createdTimestamp
+                        })
+                      )
+                    }
+                  >
+                    {item.closed ? "View" : item.defaulted ? "Defaulted" : "Continue"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <h3>Recent Repayments</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Amount</th>
+              <th>When</th>
+              <th>Tx</th>
+            </tr>
+          </thead>
+          <tbody>
+            {repaymentActivity.slice(0, 10).map((item) => (
+              <tr key={item.txHash}>
+                <td>{item.requestId.slice(0, 10)}...</td>
+                <td>{formatTbnb(BigInt(item.amount))}</td>
+                <td>{new Date(item.timestamp * 1000).toLocaleString()}</td>
+                <td><a href={`${BSC_TESTNET_TX_BASE}${item.txHash}`} target="_blank" rel="noreferrer">{formatTxHash(item.txHash)}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <h3>Recent Executions</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Merchant</th>
+              <th>Type</th>
+              <th>When</th>
+              <th>Tx</th>
+            </tr>
+          </thead>
+          <tbody>
+            {executionActivity.slice(0, 10).map((item) => (
+              <tr key={item.txHash}>
+                <td>{formatAddress(item.merchant)}</td>
+                <td>{item.event}</td>
+                <td>{new Date(item.timestamp * 1000).toLocaleString()}</td>
+                <td><a href={`${BSC_TESTNET_TX_BASE}${item.txHash}`} target="_blank" rel="noreferrer">{formatTxHash(item.txHash)}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <h3>Merchant Activity</h3>
+        <div><strong>Total Flags:</strong> {merchantActivity?.totalFlags ?? "-"}</div>
+        <div><strong>Blocked:</strong> {merchantActivity ? String(merchantActivity.blocked) : "-"}</div>
+        <div><strong>Total Executions:</strong> {merchantActivity?.totalExecutions ?? "-"}</div>
+        <div><strong>Total Drained Attempts:</strong> {merchantActivity?.totalDrainedAttempts ?? "-"}</div>
+
+        <h3>Pocket Creation History</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Pocket</th>
+              <th>When</th>
+              <th>Tx</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pocketActivity.slice(0, 10).map((item) => (
+              <tr key={item.txHash}>
+                <td>{formatAddress(item.pocket)}</td>
+                <td>{new Date(item.timestamp * 1000).toLocaleString()}</td>
+                <td><a href={`${BSC_TESTNET_TX_BASE}${item.txHash}`} target="_blank" rel="noreferrer">{formatTxHash(item.txHash)}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       {status && <p><strong style={{ color: "green" }}>Status:</strong> {status}</p>}
