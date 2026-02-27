@@ -1,0 +1,28 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployer": "0x14e0D556fFe746BC5ab12902423bDa63DeA08Bf9",
+  "treasury": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+  "fundingAmount": "100000000000000000",
+  "contracts": {
+    "PocketFactory": {
+      "address": "0x2D09533dBfD323A16c38C63b11C8004650dF824B",
+      "deploymentTx": "check broadcast/Deploy.s.sol/11155111/run-latest.json"
+    },
+    "PocketController": {
+      "address": "0xC72d22cF0DD6fd5571d47EEbe5fCd87B2478bFD7",
+      "deploymentTx": "check broadcast/Deploy.s.sol/11155111/run-latest.json",
+      "balance": "100000000000000000"
+    },
+    "HoneypotToken": {
+      "address": "0x2f133abe75C46CD43C81358441512990CF39B48E",
+      "deploymentTx": "0xd8c6364b5e0e01175a2e7f178a82d00b53a030440d1e2431e9f40cfc66b36863"
+    }
+  },
+  "feeTiers": {
+    "safe": 200,
+    "provisional": 300,
+    "risky": 800
+  },
+  "gasReservePerPocket": "5000000000000000"
+}

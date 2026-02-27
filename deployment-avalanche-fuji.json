@@ -1,0 +1,38 @@
+{
+    "name": "Ward",
+    "version": "1.0.0",
+    "network": "Avalanche Fuji Testnet",
+    "chainId": 43113,
+    "blockExplorer": "https://testnet.snowtrace.io",
+    "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc",
+    "deploymentDate": "2024-01-30",
+    "contracts": {
+        "PocketFactory": {
+            "address": "0xA99E7A4d262473d0Be9869B29189dee737C72Cf4",
+            "role": "Deterministic pocket deployment via CREATE2"
+        },
+        "PocketController": {
+            "address": "0xBBd764644B8785fb3129A9DD78c58B0bbA2B586a",
+            "role": "Core routing, fee enforcement, and gas reserve holder",
+            "balance": "0.1 AVAX",
+            "capacity": "20 pockets"
+        },
+        "Treasury": {
+            "address": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+            "role": "Fee recipient"
+        }
+    },
+    "parameters": {
+        "gasReservePerPocket": "0.005 AVAX",
+        "maxPocketValue": "0.05 ETH equivalent",
+        "tier1Fee": "0% (auto-abandon)",
+        "tier2Fee": "2% (safe, auto-sweep)",
+        "tier3Fee": "8% (risky, force withdraw)",
+        "tier4Fee": "3% (provisional, user-confirmed)"
+    },
+    "fundingTx": {
+        "hash": "0xab85312c7eae63bad76923fbe2be3a132989ea63d8030c4e78626bf06f8cc0bf",
+        "block": 51282065,
+        "amount": "0.1 AVAX"
+    }
+}

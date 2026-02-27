@@ -1,0 +1,94 @@
+# ==========================================
+# Environment Variables (CRITICAL)
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# Explicit subproject env protection
+contracts/.env
+ward-backend/.env
+ward-frontend/.env
+
+# ==========================================
+# OS / System
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Logs
+# ==========================================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ==========================================
+# Node (frontend + backend)
+# ==========================================
+node_modules/
+ward-backend/node_modules/
+ward-frontend/node_modules/
+
+# Lock files (optional — remove if you commit them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ==========================================
+# Frontend Build (Next.js / Vite / React)
+# ==========================================
+ward-frontend/.next/
+ward-frontend/dist/
+ward-frontend/build/
+ward-frontend/out/
+ward-frontend/.vercel/
+ward-frontend/coverage/
+ward-frontend/.vite/
+
+# ==========================================
+# Backend Build
+# ==========================================
+ward-backend/dist/
+ward-backend/build/
+ward-backend/coverage/
+ward-backend/logs/
+
+# ==========================================
+# Foundry (contracts)
+# ==========================================
+contracts/out/
+contracts/broadcast/
+contracts/cache/
+contracts/forge-cache/
+contracts/lib/
+
+# ==========================================
+# Coverage
+# ==========================================
+coverage/
+coverage.json
+
+# ==========================================
+# TypeScript
+# ==========================================
+*.tsbuildinfo
+
+# ==========================================
+# IDE
+# ==========================================
+.vscode/
+.idea/
+
+# ==========================================
+# Misc
+# ==========================================
+*.tmp
+*.swp
+*.swo
+*.pid
+*.tgz
+*.tar.gz
+*.zip
