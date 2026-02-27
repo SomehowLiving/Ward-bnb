@@ -15,6 +15,11 @@ contract DeployCollateralDemo is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address treasury = vm.envAddress("TREASURY_ADDRESS");
+        uint256 fundingAmount = vm.envOr("FUNDING_AMOUNT", uint256(1 ether));
+        address blockMerchantAddr = vm.envOr("BLOCK_MERCHANT", address(0));
+
+        require(deployerKey != 0, "PRIVATE_KEY_ZERO");
+        require(treasury != address(0), "TREASURY_ZERO");
 
         vm.startBroadcast(deployerKey);
 
@@ -24,16 +29,25 @@ contract DeployCollateralDemo is Script {
         MerchantGood goodMerchant = new MerchantGood();
         MerchantMalicious maliciousMerchant = new MerchantMalicious();
 
-        (bool ok, ) = address(controller).call{value: 1 ether}("");
+        (bool ok, ) = address(controller).call{value: fundingAmount}("");
         require(ok, "CONTROLLER_FUND_FAIL");
+
+        if (blockMerchantAddr != address(0)) {
+            vault.blockMerchant(blockMerchantAddr);
+        }
 
         vm.stopBroadcast();
 
         console2.log("PocketFactory:", address(factory));
         console2.log("PocketController:", address(controller));
         console2.log("CollateralVault:", address(vault));
+        console2.log("CollateralVault owner:", vault.owner());
         console2.log("MerchantGood:", address(goodMerchant));
         console2.log("MerchantMalicious:", address(maliciousMerchant));
+        console2.log("Controller funded with:", fundingAmount);
+        if (blockMerchantAddr != address(0)) {
+            console2.log("Blocked merchant at deploy:", blockMerchantAddr);
+        }
     }
 }
 
@@ -64,7 +78,8 @@ contract RunCollateralDemo is Script {
         (bytes32 reqGood, address pocketGood) = vault.requestCredit(
             address(goodMerchant),
             1 ether,
-            3 days,
+            3,
+            1 days,
             11
         );
         console2.log("Good requestId:");
@@ -74,7 +89,8 @@ contract RunCollateralDemo is Script {
         (bytes32 reqBad, address pocketBad) = vault.requestCredit(
             address(maliciousMerchant),
             1 ether,
-            3 days,
+            3,
+            1 days,
             12
         );
         console2.log("Bad requestId:");
@@ -104,12 +120,16 @@ contract RunCollateralDemo is Script {
         console2.log("Vault balance before malicious call:", vaultBalanceBeforeAttack);
         console2.log("Vault balance after malicious call:", vaultBalanceAfterAttack);
 
-        vault.repay{value: 1 ether}(reqGood);
+        uint256 installment = uint256(1 ether) / 3;
+        vault.repayInstallment{value: installment}(reqGood);
+        vault.repayInstallment{value: installment}(reqGood);
+        vault.repayInstallment{value: uint256(1 ether) - (2 * installment)}(reqGood);
         console2.log("Repaid first credit position");
 
         (bytes32 reqLiquidate, ) = vault.requestCredit(
             address(goodMerchant),
             0.5 ether,
+            1,
             1,
             13
         );

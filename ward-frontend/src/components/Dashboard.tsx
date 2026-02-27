@@ -3,8 +3,6 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId } from "wagmi";
 import { ethers } from "ethers";
 import {
-  CreditRequestState,
-  CreditState,
   depositCollateral,
   getCreditRequestState,
   getCreditState,
@@ -26,25 +24,129 @@ declare global {
 type RequestInfo = {
   requestId: string;
   pocket: string;
-  dueDate: string;
+  nextDueDate: string;
 };
+const EXPECTED_CHAIN_ID = 97;
+
+type RawCreditState = {
+  user: string;
+  deposited: bigint;
+  borrowed: bigint;
+  availableCredit: bigint;
+};
+
+type RawRequestState = {
+  requestId: string;
+  exists: boolean;
+  borrower: string;
+  principal: bigint;
+  remaining: bigint;
+  installmentAmount: bigint;
+  installmentDue: bigint;
+  interval: bigint;
+  nextDueDate: bigint;
+  installmentsPaid: number;
+  totalInstallments: number;
+  defaulted: boolean;
+  closed: boolean;
+  pocket: string;
+};
+
+function formatTbnb(wei?: bigint) {
+  if (wei === undefined) return "-";
+  try {
+    const value = ethers.formatEther(wei);
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) return `${value} tBNB`;
+    return `${numeric.toLocaleString(undefined, { maximumFractionDigits: 6 })} tBNB`;
+  } catch {
+    return "-";
+  }
+}
+
+function formatDateTime(epochSeconds?: bigint) {
+  if (epochSeconds === undefined) return "-";
+  const n = Number(epochSeconds);
+  if (!Number.isFinite(n) || n <= 0) return "-";
+  return new Date(n * 1000).toLocaleString();
+}
+
+function formatDuration(seconds?: bigint) {
+  if (seconds === undefined) return "-";
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n <= 0) return "-";
+  if (n % 86400 === 0) return `${n / 86400} day(s)`;
+  if (n % 3600 === 0) return `${n / 3600} hour(s)`;
+  if (n % 60 === 0) return `${n / 60} min`;
+  return `${n} sec`;
+}
+
+function formatAddress(address?: string) {
+  if (!address || !ethers.isAddress(address)) return "-";
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function mapCreditToRaw(state: Awaited<ReturnType<typeof getCreditState>>): RawCreditState {
+  return {
+    user: state.user,
+    deposited: BigInt(state.deposited),
+    borrowed: BigInt(state.borrowed),
+    availableCredit: BigInt(state.availableCredit)
+  };
+}
+
+function mapRequestToRaw(state: Awaited<ReturnType<typeof getCreditRequestState>>): RawRequestState {
+  return {
+    requestId: state.requestId,
+    exists: state.exists,
+    borrower: state.borrower,
+    principal: BigInt(state.principal),
+    remaining: BigInt(state.remaining),
+    installmentAmount: BigInt(state.installmentAmount),
+    installmentDue: BigInt(state.installmentDue),
+    interval: BigInt(state.interval),
+    nextDueDate: BigInt(state.nextDueDate),
+    installmentsPaid: Number(state.installmentsPaid),
+    totalInstallments: Number(state.totalInstallments),
+    defaulted: state.defaulted,
+    closed: state.closed,
+    pocket: state.pocket
+  };
+}
+
+function mapRequestToView(raw?: RawRequestState | null) {
+  if (!raw) return null;
+  return {
+    principal: formatTbnb(raw.principal),
+    remaining: formatTbnb(raw.remaining),
+    installmentAmount: formatTbnb(raw.installmentAmount),
+    installmentDue: formatTbnb(raw.installmentDue),
+    interval: formatDuration(raw.interval),
+    nextDue: formatDateTime(raw.nextDueDate),
+    installmentsProgress: `${raw.installmentsPaid} / ${raw.totalInstallments}`,
+    defaulted: raw.defaulted,
+    closed: raw.closed
+  };
+}
 
 export default function Dashboard() {
   const { isConnected, address } = useAccount();
   const chainId = useChainId();
 
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
-  const [creditState, setCreditState] = useState<CreditState | null>(null);
+  const [creditState, setCreditState] = useState<RawCreditState | null>(null);
   const [activeRequest, setActiveRequest] = useState<RequestInfo | null>(null);
-  const [requestState, setRequestState] = useState<CreditRequestState | null>(null);
+  const [requestState, setRequestState] = useState<RawRequestState | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [merchantStatus, setMerchantStatus] = useState<MerchantStatus | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   const [depositAmount, setDepositAmount] = useState("1");
   const [merchantAddress, setMerchantAddress] = useState("");
   const [creditAmount, setCreditAmount] = useState("0.1");
-  const [durationSeconds, setDurationSeconds] = useState("2592000");
+  const [installmentCount, setInstallmentCount] = useState("4");
+  const [intervalSeconds, setIntervalSeconds] = useState("604800");
   const [salt, setSalt] = useState(String(Date.now()));
 
   const [executeTarget, setExecuteTarget] = useState("");
@@ -52,8 +154,7 @@ export default function Dashboard() {
   const [executeExpiryOffset, setExecuteExpiryOffset] = useState("600");
 
   useEffect(() => {
-    if (!isConnected || !address) return;
-    if (!window.ethereum) return;
+    if (!isConnected || !address || !window.ethereum) return;
 
     const init = async () => {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -75,34 +176,38 @@ export default function Dashboard() {
 
   const creditLabel = useMemo(() => {
     if (!creditState) return "Disconnected";
-    const deposited = BigInt(creditState.deposited);
-    const borrowed = BigInt(creditState.borrowed);
-    if (deposited === 0n) return "No deposit";
-    if (borrowed === 0n) return "Has deposit";
+    if (creditState.deposited === 0n) return "No deposit";
+    if (creditState.borrowed === 0n) return "Has deposit";
     return "Borrowed > 0";
   }, [creditState]);
 
   const requestLabel = useMemo(() => {
     if (!requestState) return "No request loaded";
-    if (requestState.repaid) return "Repaid";
+    if (requestState.closed) return "Repaid";
+    if (requestState.defaulted) return "Defaulted";
     const now = Math.floor(Date.now() / 1000);
-    if (Number(requestState.dueDate) < now) return "Defaulted";
+    if (Number(requestState.nextDueDate) < now) return "Defaulted";
     return "Pending execution";
   }, [requestState]);
 
+  const requestView = useMemo(() => mapRequestToView(requestState), [requestState]);
+
   async function refreshCredit(user: string) {
     const state = await getCreditState(user);
-    setCreditState(state);
+    setCreditState(mapCreditToRaw(state));
   }
 
   async function refreshRequest(requestId: string) {
     const state = await getCreditRequestState(requestId);
-    setRequestState(state);
+    setRequestState(mapRequestToRaw(state));
   }
 
   async function onDeposit(e: React.FormEvent) {
     e.preventDefault();
     if (!signer || !address) return;
+    if (chainId !== EXPECTED_CHAIN_ID) {
+      throw new Error(`Wrong network: switch to BSC Testnet (${EXPECTED_CHAIN_ID})`);
+    }
     setError("");
     setStatus("Submitting deposit...");
     await depositCollateral(signer, depositAmount);
@@ -113,6 +218,9 @@ export default function Dashboard() {
   async function onRequestCredit(e: React.FormEvent) {
     e.preventDefault();
     if (!signer || !address) return;
+    if (chainId !== EXPECTED_CHAIN_ID) {
+      throw new Error(`Wrong network: switch to BSC Testnet (${EXPECTED_CHAIN_ID})`);
+    }
     if (merchantStatus?.blocked) throw new Error("Merchant is blocked");
 
     setError("");
@@ -122,7 +230,8 @@ export default function Dashboard() {
       signer,
       merchantAddress,
       creditAmount,
-      durationSeconds,
+      installmentCount,
+      intervalSeconds,
       salt
     );
 
@@ -145,6 +254,9 @@ export default function Dashboard() {
   async function onExecute(e: React.FormEvent) {
     e.preventDefault();
     if (!signer || !activeRequest) return;
+    if (chainId !== EXPECTED_CHAIN_ID) {
+      throw new Error(`Wrong network: switch to BSC Testnet (${EXPECTED_CHAIN_ID})`);
+    }
 
     setError("");
     setStatus("Preparing relayed execution...");
@@ -176,9 +288,15 @@ export default function Dashboard() {
 
   async function onRepay() {
     if (!signer || !address || !requestState) return;
+    if (chainId !== EXPECTED_CHAIN_ID) {
+      throw new Error(`Wrong network: switch to BSC Testnet (${EXPECTED_CHAIN_ID})`);
+    }
+    if (requestState.defaulted) throw new Error("Loan is defaulted");
+    if (requestState.closed) throw new Error("Loan already closed");
+
     setError("");
     setStatus("Submitting repayment...");
-    await repayOnVault(signer, requestState.requestId, requestState.amount);
+    await repayOnVault(signer, requestState.requestId, requestState.installmentDue.toString());
     await Promise.all([refreshCredit(address), refreshRequest(requestState.requestId)]);
     setStatus("Repayment confirmed.");
   }
@@ -190,7 +308,7 @@ export default function Dashboard() {
 
   if (!isConnected) {
     return (
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "2rem" }}>
+      <div className="container">
         <h1>Ward Collateral</h1>
         <p>Connect your wallet to use direct Vault credit + relayed pocket execution.</p>
         <ConnectButton />
@@ -199,59 +317,80 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem" }}>
+    <div className="container">
       <h1>Ward Collateral</h1>
-      <p>Connected: {address}</p>
-      <p>Chain ID: {chainId}</p>
+      <div className="card">
+        <div><strong>Connected:</strong> {formatAddress(address ?? "")}</div>
+        <div><strong>Wallet:</strong> {address}</div>
+        <div><strong>Chain ID:</strong> {chainId} {chainId === EXPECTED_CHAIN_ID ? "(BSC Testnet)" : `(Wrong: expected ${EXPECTED_CHAIN_ID})`}</div>
+      </div>
 
-      <section>
+      <section className="card">
         <h2>Credit Dashboard</h2>
         <button onClick={() => address && safeRun(() => refreshCredit(address))}>Refresh</button>
-        <div>Deposited: {creditState?.deposited ?? "-"}</div>
-        <div>Borrowed: {creditState?.borrowed ?? "-"}</div>
-        <div>Available Credit: {creditState?.availableCredit ?? "-"}</div>
-        <div>Credit State: {creditLabel}</div>
+        <div><strong>Deposited:</strong> {formatTbnb(creditState?.deposited)}</div>
+        <div><strong>Borrowed:</strong> {formatTbnb(creditState?.borrowed)}</div>
+        <div><strong>Available Credit:</strong> {formatTbnb(creditState?.availableCredit)}</div>
+        <div><strong>Credit State:</strong> {creditLabel}</div>
       </section>
 
-      <section>
+      <section className="card">
         <h2>Deposit</h2>
         <form onSubmit={(e) => safeRun(() => onDeposit(e))}>
-          <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Amount BNB" />
+          <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Amount tBNB" />
           <button type="submit" disabled={!signer}>Deposit</button>
         </form>
       </section>
 
-      <section>
+      <section className="card">
         <h2>Request Credit (User tx)</h2>
         <form onSubmit={(e) => safeRun(() => onRequestCredit(e))}>
           <input value={merchantAddress} onChange={(e) => setMerchantAddress(e.target.value)} placeholder="Merchant address" />
-          <input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} placeholder="Amount BNB" />
-          <input value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} placeholder="Duration seconds" />
+          <input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} placeholder="Amount tBNB" />
+          <input value={installmentCount} onChange={(e) => setInstallmentCount(e.target.value)} placeholder="Installment count" />
+          <input value={intervalSeconds} onChange={(e) => setIntervalSeconds(e.target.value)} placeholder="Interval seconds" />
           <input value={salt} onChange={(e) => setSalt(e.target.value)} placeholder="Salt" />
           <button type="button" onClick={() => safeRun(() => refreshMerchantStatus(merchantAddress))}>
             Check Merchant
           </button>
           <button type="submit" disabled={!signer || merchantStatus?.blocked}>Buy with Ward</button>
         </form>
-        <div>Merchant Flag Count: {merchantStatus?.flagCount ?? "-"}</div>
-        <div>Merchant Blocked: {merchantStatus ? String(merchantStatus.blocked) : "-"}</div>
-        <div>requestId: {activeRequest?.requestId ?? "-"}</div>
-        <div>pocket: {activeRequest?.pocket ?? "-"}</div>
-        <div>dueDate: {activeRequest?.dueDate ?? "-"}</div>
+        <div><strong>Merchant Flag Count:</strong> {merchantStatus?.flagCount ?? "-"}</div>
+        <div><strong>Merchant Blocked:</strong> {merchantStatus ? String(merchantStatus.blocked) : "-"}</div>
+        <div><strong>Request ID:</strong> {activeRequest?.requestId ?? "-"}</div>
+        <div><strong>Pocket:</strong> {activeRequest?.pocket ?? "-"}</div>
+        <div><strong>Next Due:</strong> {activeRequest ? formatDateTime(BigInt(activeRequest.nextDueDate)) : "-"}</div>
       </section>
 
-      <section>
+      <section className="card">
         <h2>Request State</h2>
         {activeRequest && (
           <button onClick={() => safeRun(() => refreshRequest(activeRequest.requestId))}>Refresh Request</button>
         )}
-        <div>Status: {requestLabel}</div>
-        <div>Amount Owed: {requestState?.amount ?? "-"}</div>
-        <div>Due Date: {requestState?.dueDate ?? "-"}</div>
-        <div>Repaid: {String(requestState?.repaid ?? false)}</div>
+        <div>
+          <label>
+            <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} /> Show raw values
+          </label>
+        </div>
+        <div><strong>Status:</strong> {requestLabel}</div>
+        <div><strong>Principal:</strong> {requestView?.principal ?? "-"}</div>
+        {showRaw && <div><small>Raw principal: {requestState?.principal.toString() ?? "-"}</small></div>}
+        <div><strong>Remaining:</strong> {requestView?.remaining ?? "-"}</div>
+        {showRaw && <div><small>Raw remaining: {requestState?.remaining.toString() ?? "-"}</small></div>}
+        <div><strong>Installment Amount:</strong> {requestView?.installmentAmount ?? "-"}</div>
+        {showRaw && <div><small>Raw installment amount: {requestState?.installmentAmount.toString() ?? "-"}</small></div>}
+        <div><strong>Installment Due Now:</strong> {requestView?.installmentDue ?? "-"}</div>
+        {showRaw && <div><small>Raw installment due: {requestState?.installmentDue.toString() ?? "-"}</small></div>}
+        <div><strong>Installments Paid:</strong> {requestView?.installmentsProgress ?? "-"}</div>
+        <div><strong>Interval:</strong> {requestView?.interval ?? "-"}</div>
+        {showRaw && <div><small>Raw interval: {requestState?.interval.toString() ?? "-"} sec</small></div>}
+        <div><strong>Next Due Date:</strong> {requestView?.nextDue ?? "-"}</div>
+        {showRaw && <div><small>Raw due epoch: {requestState?.nextDueDate.toString() ?? "-"}</small></div>}
+        <div><strong>Defaulted:</strong> {String(requestView?.defaulted ?? false)}</div>
+        <div><strong>Closed:</strong> {String(requestView?.closed ?? false)}</div>
       </section>
 
-      <section>
+      <section className="card">
         <h2>Execute (Relayed)</h2>
         <form onSubmit={(e) => safeRun(() => onExecute(e))}>
           <input value={executeTarget} onChange={(e) => setExecuteTarget(e.target.value)} placeholder="Target address" />
@@ -261,15 +400,18 @@ export default function Dashboard() {
         </form>
       </section>
 
-      <section>
+      <section className="card">
         <h2>Repay (User tx)</h2>
-        <button onClick={() => safeRun(onRepay)} disabled={!requestState || requestState.repaid || !signer}>
-          Repay Now
+        <button
+          onClick={() => safeRun(onRepay)}
+          disabled={!requestState || requestState.closed || requestState.defaulted || !signer}
+        >
+          Repay Installment ({requestView?.installmentDue ?? "-"})
         </button>
       </section>
 
-      {status && <p style={{ color: "green" }}>{status}</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {status && <p><strong style={{ color: "green" }}>Status:</strong> {status}</p>}
+      {error && <p><strong style={{ color: "red" }}>Error:</strong> {error}</p>}
     </div>
   );
 }

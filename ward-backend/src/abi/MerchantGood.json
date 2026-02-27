@@ -1,0 +1,122 @@
+{
+    "abi": [
+        {
+            "type": "function",
+            "name": "purchase",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "event",
+            "name": "Purchased",
+            "inputs": [
+                {
+                    "name": "buyer",
+                    "type": "address",
+                    "indexed": false,
+                    "internalType": "address"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint256",
+                    "indexed": false,
+                    "internalType": "uint256"
+                }
+            ],
+            "anonymous": false
+        }
+    ],
+    "bytecode": {
+        "object": "0x6080604052348015600e575f80fd5b5060978061001b5f395ff3fe608060405260043610601b575f3560e01c806364edfbf014601f575b5f80fd5b60256027565b005b604080513381523460208201527fa512fb2532ca8587f236380171326ebb69670e86a2ba0c4412a3fcca4c3ada9b910160405180910390a156fea26469706673582212200236f18d3c7279830608d91389590eff6638287d56b27e193f508b36bed9640864736f6c63430008180033",
+        "sourceMap": "58:174:46:-:0;;;;;;;;;;;;;;;;;;;",
+        "linkReferences": {}
+    },
+    "deployedBytecode": {
+        "object": "0x608060405260043610601b575f3560e01c806364edfbf014601f575b5f80fd5b60256027565b005b604080513381523460208201527fa512fb2532ca8587f236380171326ebb69670e86a2ba0c4412a3fcca4c3ada9b910160405180910390a156fea26469706673582212200236f18d3c7279830608d91389590eff6638287d56b27e193f508b36bed9640864736f6c63430008180033",
+        "sourceMap": "58:174:46:-:0;;;;;;;;;;;;;;;;;;;;;139:91;;;:::i;:::-;;;191:32;;;201:10;188:51:61;;213:9:46;270:2:61;255:18;;248:34;191:32:46;;161:18:61;191:32:46;;;;;;;139:91::o",
+        "linkReferences": {}
+    },
+    "methodIdentifiers": {
+        "purchase()": "64edfbf0"
+    },
+    "rawMetadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"buyer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Purchased\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"purchase\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/MerchantGood.sol\":\"MerchantGood\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/\",\":erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/\",\":forge-std/=lib/forge-std/src/\",\":halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/\",\":openzeppelin-contracts/=lib/openzeppelin-contracts/\"]},\"sources\":{\"src/MerchantGood.sol\":{\"keccak256\":\"0xfc4524d21bc689508cdca3e8458e6ecf2abd687702723b37d8946da0564770c2\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a3de800fbee3913fb20d487e05dce66ce5f1d1d6fea2d347f09ce36f02dd37d4\",\"dweb:/ipfs/QmVCszMPC1Li8BY6MzpcMAQ4RoXUbJ4v4MShYhZ3ZH86ar\"]}},\"version\":1}",
+    "metadata": {
+        "compiler": {
+            "version": "0.8.24+commit.e11b9ed9"
+        },
+        "language": "Solidity",
+        "output": {
+            "abi": [
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "buyer",
+                            "type": "address",
+                            "indexed": false
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256",
+                            "indexed": false
+                        }
+                    ],
+                    "type": "event",
+                    "name": "Purchased",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "purchase"
+                }
+            ],
+            "devdoc": {
+                "kind": "dev",
+                "methods": {},
+                "version": 1
+            },
+            "userdoc": {
+                "kind": "user",
+                "methods": {},
+                "version": 1
+            }
+        },
+        "settings": {
+            "remappings": [
+                "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+                "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+                "forge-std/=lib/forge-std/src/",
+                "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+                "openzeppelin-contracts/=lib/openzeppelin-contracts/"
+            ],
+            "optimizer": {
+                "enabled": true,
+                "runs": 200
+            },
+            "metadata": {
+                "bytecodeHash": "ipfs"
+            },
+            "compilationTarget": {
+                "src/MerchantGood.sol": "MerchantGood"
+            },
+            "evmVersion": "cancun",
+            "libraries": {}
+        },
+        "sources": {
+            "src/MerchantGood.sol": {
+                "keccak256": "0xfc4524d21bc689508cdca3e8458e6ecf2abd687702723b37d8946da0564770c2",
+                "urls": [
+                    "bzz-raw://a3de800fbee3913fb20d487e05dce66ce5f1d1d6fea2d347f09ce36f02dd37d4",
+                    "dweb:/ipfs/QmVCszMPC1Li8BY6MzpcMAQ4RoXUbJ4v4MShYhZ3ZH86ar"
+                ],
+                "license": "MIT"
+            }
+        },
+        "version": 1
+    },
+    "id": 46
+}

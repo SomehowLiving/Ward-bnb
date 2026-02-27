@@ -9,5 +9,12 @@ export const API = {
   },
   merchant: {
     get: (address: string) => `/api/merchant/${address}`
+  },
+  activity: {
+    credits: (user: string) => `/api/activity/credits/${user}`,
+    repayments: (user: string) => `/api/activity/repayments/${user}`,
+    pockets: (user: string) => `/api/activity/pockets/${user}`,
+    executions: (user: string) => `/api/activity/executions/${user}`,
+    merchant: (merchant: string) => `/api/activity/merchant/${merchant}`
   }
 };

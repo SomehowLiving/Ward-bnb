@@ -1,0 +1,155 @@
+{
+    "abi": [
+        {
+            "type": "receive",
+            "stateMutability": "payable"
+        },
+        {
+            "type": "function",
+            "name": "purchase",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "event",
+            "name": "AttackAttempted",
+            "inputs": [
+                {
+                    "name": "caller",
+                    "type": "address",
+                    "indexed": true,
+                    "internalType": "address"
+                },
+                {
+                    "name": "observedCallerBalance",
+                    "type": "uint256",
+                    "indexed": false,
+                    "internalType": "uint256"
+                },
+                {
+                    "name": "success",
+                    "type": "bool",
+                    "indexed": false,
+                    "internalType": "bool"
+                },
+                {
+                    "name": "returnData",
+                    "type": "bytes",
+                    "indexed": false,
+                    "internalType": "bytes"
+                }
+            ],
+            "anonymous": false
+        }
+    ],
+    "bytecode": {
+        "object": "0x608060405234801561000f575f80fd5b5061015f8061001d5f395ff3fe608060405260043610610020575f3560e01c806364edfbf01461002b575f80fd5b3661002757005b5f80fd5b610033610035565b005b604051338031915f91829184908381818185875af1925050503d805f8114610078576040519150601f19603f3d011682016040523d82523d5f602084013e61007d565b606091505b5091509150336001600160a01b03167f19bc7c5d08b2f6c02f347f63a65dba93a015969c0cdf3812ab47aa168dba97e38484846040516100bf939291906100cc565b60405180910390a2505050565b8381525f602084151560208401526060604084015283518060608501525f5b81811015610107578581018301518582016080015282016100eb565b505f608082860101526080601f19601f8301168501019250505094935050505056fea2646970667358221220861e41cb2bfe07696ff7792956058f0a6bef32e2511b797804ebf2c5f439011164736f6c63430008180033",
+        "sourceMap": "58:603:47:-:0;;;;;;;;;;;;;;;;;;;",
+        "linkReferences": {}
+    },
+    "deployedBytecode": {
+        "object": "0x608060405260043610610020575f3560e01c806364edfbf01461002b575f80fd5b3661002757005b5f80fd5b610033610035565b005b604051338031915f91829184908381818185875af1925050503d805f8114610078576040519150601f19603f3d011682016040523d82523d5f602084013e61007d565b606091505b5091509150336001600160a01b03167f19bc7c5d08b2f6c02f347f63a65dba93a015969c0cdf3812ab47aa168dba97e38484846040516100bf939291906100cc565b60405180910390a2505050565b8381525f602084151560208401526060604084015283518060608501525f5b81811015610107578581018301518582016080015282016100eb565b505f608082860101526080601f19601f8301168501019250505094935050505056fea2646970667358221220861e41cb2bfe07696ff7792956058f0a6bef32e2511b797804ebf2c5f439011164736f6c63430008180033",
+        "sourceMap": "58:603:47:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;244:380;;;:::i;:::-;;;459:71;;331:10;323:27;;;291:29;;;;323:27;;291:29;459:71;291:29;459:71;323:27;331:10;459:71;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;417:113;;;;562:10;-1:-1:-1;;;;;546:71:47;;574:21;597:7;606:10;546:71;;;;;;;;:::i;:::-;;;;;;;;281:343;;;244:380::o;224:701:61:-;421:6;410:9;403:25;384:4;447:2;499:6;492:14;485:22;480:2;469:9;465:18;458:50;544:2;539;528:9;524:18;517:30;576:6;570:13;619:6;614:2;603:9;599:18;592:34;644:1;654:141;668:6;665:1;662:13;654:141;;;764:14;;;760:23;;754:30;729:17;;;748:3;725:27;718:67;683:10;;654:141;;;658:3;845:1;839:3;830:6;819:9;815:22;811:32;804:43;915:3;908:2;904:7;899:2;891:6;887:15;883:29;872:9;868:45;864:55;856:63;;;;224:701;;;;;;:::o",
+        "linkReferences": {}
+    },
+    "methodIdentifiers": {
+        "purchase()": "64edfbf0"
+    },
+    "rawMetadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"observedCallerBalance\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"returnData\",\"type\":\"bytes\"}],\"name\":\"AttackAttempted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"purchase\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/MerchantMalicious.sol\":\"MerchantMalicious\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/\",\":erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/\",\":forge-std/=lib/forge-std/src/\",\":halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/\",\":openzeppelin-contracts/=lib/openzeppelin-contracts/\"]},\"sources\":{\"src/MerchantMalicious.sol\":{\"keccak256\":\"0xf06bc8cecb56fe62689ee45bcab66247361cb2f5d9c30598c5143cf5c11b39c5\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1cacf986bbaebf6a768edb4e8d0c42af7f25d655ef7d6af3dbe3f5b5537e75a1\",\"dweb:/ipfs/QmRcSJ9zQPp2pVNHTgFUUGSSobJUoKwY4SYGkYLEy1qKZB\"]}},\"version\":1}",
+    "metadata": {
+        "compiler": {
+            "version": "0.8.24+commit.e11b9ed9"
+        },
+        "language": "Solidity",
+        "output": {
+            "abi": [
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "caller",
+                            "type": "address",
+                            "indexed": true
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "observedCallerBalance",
+                            "type": "uint256",
+                            "indexed": false
+                        },
+                        {
+                            "internalType": "bool",
+                            "name": "success",
+                            "type": "bool",
+                            "indexed": false
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "returnData",
+                            "type": "bytes",
+                            "indexed": false
+                        }
+                    ],
+                    "type": "event",
+                    "name": "AttackAttempted",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "purchase"
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "receive"
+                }
+            ],
+            "devdoc": {
+                "kind": "dev",
+                "methods": {},
+                "version": 1
+            },
+            "userdoc": {
+                "kind": "user",
+                "methods": {},
+                "version": 1
+            }
+        },
+        "settings": {
+            "remappings": [
+                "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+                "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+                "forge-std/=lib/forge-std/src/",
+                "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+                "openzeppelin-contracts/=lib/openzeppelin-contracts/"
+            ],
+            "optimizer": {
+                "enabled": true,
+                "runs": 200
+            },
+            "metadata": {
+                "bytecodeHash": "ipfs"
+            },
+            "compilationTarget": {
+                "src/MerchantMalicious.sol": "MerchantMalicious"
+            },
+            "evmVersion": "cancun",
+            "libraries": {}
+        },
+        "sources": {
+            "src/MerchantMalicious.sol": {
+                "keccak256": "0xf06bc8cecb56fe62689ee45bcab66247361cb2f5d9c30598c5143cf5c11b39c5",
+                "urls": [
+                    "bzz-raw://1cacf986bbaebf6a768edb4e8d0c42af7f25d655ef7d6af3dbe3f5b5537e75a1",
+                    "dweb:/ipfs/QmRcSJ9zQPp2pVNHTgFUUGSSobJUoKwY4SYGkYLEy1qKZB"
+                ],
+                "license": "MIT"
+            }
+        },
+        "version": 1
+    },
+    "id": 47
+}

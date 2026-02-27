@@ -53,15 +53,27 @@ router.get("/request/:requestId", async (req, res) => {
       vault.creditBorrower(requestId)
     ]);
 
-    const exists = creditPosition.dueDate > 0n;
+    const exists = creditPosition.principal > 0n;
+
+    const installmentDue =
+      creditPosition.installmentsPaid + 1n === creditPosition.totalInstallments
+        ? creditPosition.remaining
+        : creditPosition.installmentAmount;
 
     res.json({
       requestId,
       exists,
       borrower,
-      amount: creditPosition.amount.toString(),
-      dueDate: creditPosition.dueDate.toString(),
-      repaid: creditPosition.repaid,
+      principal: creditPosition.principal.toString(),
+      remaining: creditPosition.remaining.toString(),
+      installmentAmount: creditPosition.installmentAmount.toString(),
+      installmentsPaid: creditPosition.installmentsPaid.toString(),
+      totalInstallments: creditPosition.totalInstallments.toString(),
+      interval: creditPosition.interval.toString(),
+      nextDueDate: creditPosition.nextDueDate.toString(),
+      installmentDue: installmentDue.toString(),
+      defaulted: creditPosition.defaulted,
+      closed: creditPosition.closed,
       pocket: creditPosition.pocket
     });
   } catch (err) {
@@ -74,17 +86,19 @@ router.get("/request/:requestId", async (req, res) => {
 
 router.post("/request", async (req, res) => {
   try {
-    const { user, merchant, amount, duration, salt } = req.body ?? {};
+    const { user, merchant, amount, installmentCount, interval, salt } = req.body ?? {};
 
     requireAddress(user, "user");
     requireAddress(merchant, "merchant");
 
     const requestedAmount = BigInt(amount);
-    const requestedDuration = BigInt(duration);
+    const requestedInstallmentCount = BigInt(installmentCount);
+    const requestedInterval = BigInt(interval);
     const requestedSalt = salt === undefined ? BigInt(Date.now()) : BigInt(salt);
 
     if (requestedAmount <= 0n) throw new ValidationError("amount must be > 0");
-    if (requestedDuration <= 0n) throw new ValidationError("duration must be > 0");
+    if (requestedInstallmentCount <= 0n) throw new ValidationError("installmentCount must be > 0");
+    if (requestedInterval <= 0n) throw new ValidationError("interval must be > 0");
 
     const signerAddress = await controllerSigner.getAddress();
     if (getAddressLower(user) !== getAddressLower(signerAddress)) {
@@ -104,7 +118,13 @@ router.post("/request", async (req, res) => {
       });
     }
 
-    const tx = await vault.requestCredit(merchant, requestedAmount, requestedDuration, requestedSalt);
+    const tx = await vault.requestCredit(
+      merchant,
+      requestedAmount,
+      requestedInstallmentCount,
+      requestedInterval,
+      requestedSalt
+    );
     const receipt = await tx.wait();
 
     let requestEvent = null;
@@ -126,7 +146,7 @@ router.post("/request", async (req, res) => {
 
     const requestId = requestEvent.args.requestId;
     const pocket = requestEvent.args.pocket;
-    const dueDate = requestEvent.args.dueDate;
+    const nextDueDate = requestEvent.args.nextDueDate;
 
     const [validPocket, pocketOwner] = await Promise.all([
       controller.validPocket(pocket),
@@ -140,7 +160,7 @@ router.post("/request", async (req, res) => {
     res.json({
       requestId,
       pocket,
-      dueDate: dueDate.toString(),
+      nextDueDate: nextDueDate.toString(),
       txHash: receipt.hash
     });
   } catch (err) {
@@ -161,22 +181,27 @@ router.post("/repay", async (req, res) => {
     if (getAddressLower(user) !== getAddressLower(signerAddress)) {
       return res.status(400).json({
         error:
-          "repay uses msg.sender in the current vault contract; backend signer must equal user or frontend should call vault directly"
+          "repayInstallment uses msg.sender in the current vault contract; backend signer must equal user or frontend should call vault directly"
       });
     }
 
     const vault = getVaultContract();
     const creditPosition = await vault.creditPositions(requestId);
-    if (creditPosition.dueDate === 0n) {
+    if (creditPosition.principal === 0n) {
       return res.status(404).json({ error: "Credit request not found" });
     }
 
-    const tx = await vault.repay(requestId, { value: creditPosition.amount });
+    const installmentDue =
+      creditPosition.installmentsPaid + 1n === creditPosition.totalInstallments
+        ? creditPosition.remaining
+        : creditPosition.installmentAmount;
+
+    const tx = await vault.repayInstallment(requestId, { value: installmentDue });
     const receipt = await tx.wait();
 
     res.json({
       requestId,
-      repaidAmount: creditPosition.amount.toString(),
+      repaidAmount: installmentDue.toString(),
       txHash: receipt.hash
     });
   } catch (err) {

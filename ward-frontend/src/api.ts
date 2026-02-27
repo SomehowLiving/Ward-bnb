@@ -5,9 +5,9 @@ const VAULT_ADDRESS = import.meta.env.VITE_VAULT_ADDRESS;
 
 const VAULT_ABI = [
   "function deposit() payable",
-  "function requestCredit(address merchant,uint256 amount,uint256 duration,uint256 salt) returns (bytes32 requestId,address pocket)",
-  "function repay(bytes32 requestId) payable",
-  "event CreditRequested(bytes32 indexed requestId,address indexed user,address indexed merchant,address pocket,uint256 amount,uint256 dueDate)"
+  "function requestCredit(address merchant,uint256 amount,uint256 installmentCount,uint256 interval,uint256 salt) returns (bytes32 requestId,address pocket)",
+  "function repayInstallment(bytes32 requestId) payable",
+  "event CreditRequested(bytes32 indexed requestId,address indexed user,address indexed merchant,address pocket,uint256 principal,uint256 installmentAmount,uint256 totalInstallments,uint256 interval,uint256 nextDueDate)"
 ];
 
 export type CreditState = {
@@ -21,9 +21,16 @@ export type CreditRequestState = {
   requestId: string;
   exists: boolean;
   borrower: string;
-  amount: string;
-  dueDate: string;
-  repaid: boolean;
+  principal: string;
+  remaining: string;
+  installmentAmount: string;
+  installmentsPaid: string;
+  totalInstallments: string;
+  interval: string;
+  nextDueDate: string;
+  installmentDue: string;
+  defaulted: boolean;
+  closed: boolean;
   pocket: string;
 };
 
@@ -108,14 +115,16 @@ export async function requestCreditOnVault(
   signer: ethers.Signer,
   merchant: string,
   amountEth: string,
-  durationSeconds: string,
+  installmentCount: string,
+  intervalSeconds: string,
   salt: string
-): Promise<{ requestId: string; pocket: string; dueDate: string }> {
+): Promise<{ requestId: string; pocket: string; nextDueDate: string }> {
   const vault = getVaultContract(signer);
   const tx = await vault.requestCredit(
     merchant,
     ethers.parseEther(amountEth),
-    BigInt(durationSeconds),
+    BigInt(installmentCount),
+    BigInt(intervalSeconds),
     BigInt(salt)
   );
   const receipt = await tx.wait();
@@ -128,7 +137,7 @@ export async function requestCreditOnVault(
       return {
         requestId: parsed.args.requestId,
         pocket: parsed.args.pocket,
-        dueDate: (parsed.args.dueDate as bigint).toString()
+        nextDueDate: (parsed.args.nextDueDate as bigint).toString()
       };
     } catch {
       // ignore unrelated logs
@@ -140,7 +149,7 @@ export async function requestCreditOnVault(
 
 export async function repayOnVault(signer: ethers.Signer, requestId: string, amountWei: string) {
   const vault = getVaultContract(signer);
-  const tx = await vault.repay(requestId, { value: BigInt(amountWei) });
+  const tx = await vault.repayInstallment(requestId, { value: BigInt(amountWei) });
   return tx.wait();
 }
 
