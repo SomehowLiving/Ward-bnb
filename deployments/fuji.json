@@ -1,0 +1,28 @@
+{
+    "network": {
+        "name": "Avalanche Fuji",
+        "chainId": 43113,
+        "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc"
+    },
+    "contracts": {
+        "ward": {
+            "factory": "0xA99E7A4d262473d0Be9869B29189dee737C72Cf4",
+            "controller": "0xBBd764644B8785fb3129A9DD78c58B0bbA2B586a",
+            "treasury": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8"
+        },
+        "test": {
+            "honeypotToken": "0xa30c03b68B18a4aA5ab68CA7a92Aa349b4ccefb3",
+            "honeypotDeploymentTx": "0xad6797d27a9e767fb3aab0a36517fb8dfb32cf0c07d8e9850aa190955f58d3d4"
+        }
+    },
+    "config": {
+        "gasReservePerPocket": "0.005 AVAX",
+        "maxPocketValue": "0.05 AVAX",
+        "controllerFunding": "0.1 AVAX",
+        "feeTiers": {
+            "safe": "2%",
+            "provisional": "3%",
+            "risky": "8%"
+        }
+    }
+}

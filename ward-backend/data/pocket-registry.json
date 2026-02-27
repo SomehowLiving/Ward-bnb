@@ -1,0 +1,58 @@
+{
+  "owners": {
+    "0x2acfF541cf34B190276eB65a082cB16378aDF9D8": [
+      "0xfdf27264f510b05cdce96b0e9921cd4ee4329266",
+      "0x6d75665063420f45bb3e95d7efdb50cd07c05176",
+      "0xc82b6aa9896518a327d3cf78cca36a2e5b6bba4d",
+      "0x2c548bec8f0331069f89f9748134753d9c948c07",
+      "0x509f712b942379e354ebb04afe027351e5d2e4e6",
+      "0xf474243b21e15690bc5378f5f7d3847a874f9fcb",
+      "0xb22a32081ae544a6a1f4acfaa9b4ab0c725677b2",
+      "0xe25467825a037ae3a89d6c9b431255f88e5c3204",
+      "0x87f3ce47435913f40757514ee67a4af8221babef",
+      "0x99871d98e51e37cd6dc83f622bbfa9e3fb6820c9"
+    ]
+  },
+  "pockets": {
+    "0xfdf27264f510b05cdce96b0e9921cd4ee4329266": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10236377
+    },
+    "0x6d75665063420f45bb3e95d7efdb50cd07c05176": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10236435
+    },
+    "0xc82b6aa9896518a327d3cf78cca36a2e5b6bba4d": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10269785
+    },
+    "0x2c548bec8f0331069f89f9748134753d9c948c07": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10270701
+    },
+    "0x509f712b942379e354ebb04afe027351e5d2e4e6": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10283782
+    },
+    "0xf474243b21e15690bc5378f5f7d3847a874f9fcb": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10283902
+    },
+    "0xb22a32081ae544a6a1f4acfaa9b4ab0c725677b2": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10284418
+    },
+    "0xe25467825a037ae3a89d6c9b431255f88e5c3204": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10284461
+    },
+    "0x87f3ce47435913f40757514ee67a4af8221babef": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10335120
+    },
+    "0x99871d98e51e37cd6dc83f622bbfa9e3fb6820c9": {
+      "owner": "0x2acfF541cf34B190276eB65a082cB16378aDF9D8",
+      "createdBlock": 10335195
+    }
+  }
+}
