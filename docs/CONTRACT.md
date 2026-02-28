@@ -18,96 +18,90 @@ Core model:
 ## 1. `CollateralVault.sol`
 
 ### What it does
-- Accepts user collateral via `deposit()`.
-- Computes user credit capacity with fixed LTV via `availableCredit()`.
-- Creates installment BNPL loans via:
-  - `requestCredit(merchant, amount, installmentCount, interval, salt)`
-- Tracks each loan in `creditPositions` with:
-  - `principal`, `remaining`, `installmentAmount`, `installmentsPaid`, `totalInstallments`, `interval`, `nextDueDate`, `defaulted`, `closed`, `pocket`.
-- Funds newly created pocket with requested principal.
-- Accepts installment repayments via `repayInstallment(requestId)`.
-- Closes loan only when `remaining == 0`, then decreases `positions[user].borrowed` by full `principal`.
-- Liquidates overdue/defaulted loans via `liquidate(requestId)`, and decreases borrowed by full `principal`.
-- Maintains merchant governance:
-  - `flagMerchant`, `blockMerchant`, `unblockMerchant`
-  - `merchantFlagCount`, `merchantBlocked`, `owner`.
+- Accepts user collateral via `deposit()` (native BNB in this repo).
+- Computes user credit capacity with a fixed LTV constant via `availableCredit()`.
+- Creates installment BNPL loans with `requestCredit(merchant, amount, installmentCount, interval, salt)` which:
+  - verifies the merchant is not blocked
+  - ensures installment and interval parameters are valid
+  - allocates the borrowed amount by incrementing `positions[borrower].borrowed`
+  - creates a deterministic pocket via `PocketController.createPocket` and funds it
+  - emits `CreditRequested` with pocket and next due date
+- Tracks loans in `creditPositions` keyed by `requestId` containing principal, remaining, installmentAmount, installmentsPaid, totalInstallments, interval, nextDueDate, defaulted, closed, and pocket address
+- Accepts repayments via `repayInstallment(requestId)` (user sends the installment amount) and closes the loan when fully repaid
+- Supports liquidation via `liquidate(requestId)` after due date — marks defaulted and releases bookkeeping
+- Merchant governance methods for on‑chain reputation: `flagMerchant`, `blockMerchant`, `unblockMerchant` and storage `merchantFlagCount` / `merchantBlocked`
+
+### Gas / UX notes
+- `requestCredit` deploys a pocket and forwards funds in the same transaction; callers must supply gas for deployment and funding
 
 ### What it does not do
-- No off-chain credit scoring.
-- No interest calculation.
-- No oracle pricing.
-- No direct merchant execution.
-- No bypass of pocket isolation.
+- No interest/accrual model (installments are fixed amounts)
+- No price or oracle feeds
+- No off‑chain credit scoring (the backend may provide context but not authority)
+- The Vault never executes merchant calls — pockets do
 
 ---
 
 ## 2. `PocketController.sol`
 
 ### What it does
-- Creates pockets through factory (`createPocket`).
-- Funds each pocket with gas reserve (`GAS_RESERVE`).
-- Tracks valid pockets and pocket owner mapping.
-- Routes execution (`executeFromPocket`) to `Pocket.exec(...)`.
-- Supports sweep and burn routes.
+- Deterministically deploys pockets (CREATE2) via a factory
+- Funds pockets with a minimal gas reserve when created
+- Maintains mappings of valid pockets and owners
+- Exposes `executeFromPocket(...)` which validates existence and forwards the call to the pocket
+- Implements controller-only sweep and burn operations for token handling
 
 ### What it does not do
-- No credit accounting.
-- No LTV enforcement.
-- No loan repayment/default logic.
+- No credit accounting or loan state — that belongs to the Vault
 
 ---
 
 ## 3. `Pocket.sol`
 
 ### What it does
-- Single-use execution wallet.
-- Verifies user EIP-712 signature for execution.
-- Enforces nonce and expiry.
-- Marks itself used after one successful execution.
-- Supports controller-only token sweep and signed burn.
+- Single‑use execution contract that accepts a signed EIP‑712 intent and executes exactly one target call
+- Verifies signature, nonce and expiry
+- Marks itself used on success to prevent replay
+- Can be queried for next nonce and state from off‑chain services
 
 ### What it does not do
-- No credit logic.
-- No collateral access.
-- No upgrade/admin flow.
+- Has no access to collateral accounting and cannot alter Vault state
 
 ---
 
 ## 4. `PocketFactory.sol`
 
 ### What it does
-- Deterministically deploys pockets using CREATE2.
-- Emits deployment event.
+- Deploys minimal pocket bytecode under deterministic addresses (CREATE2)
+- Emits `PocketCreated` for indexing by the backend
 
 ### What it does not do
-- No custody.
-- No execution authority.
-- No policy logic.
+- No custody and no execution authority beyond providing the contract bytecode
 
 ---
 
 ## Current End-to-End Flow
 
-1. User deposits collateral into `CollateralVault.deposit()`.
-2. User requests BNPL credit with installment terms through `requestCredit(...)`.
-3. Vault verifies:
-- merchant not blocked
-- installment parameters valid
-- credit available under LTV
-4. Vault increments borrower exposure (`positions[user].borrowed += principal`).
-5. Vault asks `PocketController` to create pocket.
-6. Vault funds pocket with principal.
-7. User signs EIP-712 execution intent for pocket.
-8. Relayer/backend submits `PocketController.executeFromPocket(...)`.
-9. Pocket executes exactly one merchant call (isolation boundary).
-10. User repays installments through `repayInstallment(requestId)` before each due date.
-11. If all installments paid:
-- loan closes
-- borrowed decreases by full principal.
-12. If installment due is missed:
-- anyone can call `liquidate(requestId)` after `nextDueDate`
-- loan defaulted
-- borrowed decreases by full principal.
+1. User deposits BNB via `CollateralVault.deposit()` (user tx).
+2. User requests credit through `requestCredit(merchant, amount, installmentCount, interval, salt)` (user tx). Vault verifies parameters and merchant blocklist, increases `positions[borrower].borrowed`, creates & funds a pocket, and emits `CreditRequested`.
+3. Backend derives the deterministic pocket address and presents it to the user for signing.
+4. The user signs an EIP‑712 Exec intent (pocket, target, dataHash, nonce, expiry).
+5. A relayer or backend submits `PocketController.executeFromPocket(pocket, target, calldata, signature, nonce, expiry)` which forwards to `Pocket.exec`.
+6. Pocket executes a single call to the merchant; any side effects are contained inside the pocket.
+7. After execution the pocket is marked used; logs and events are emitted for indexing.
+8. The borrower repays installments via `repayInstallment(requestId)` (user tx). If fully repaid the vault decreases `positions[borrower].borrowed` and emits `LoanClosed`.
+9. If a repayment is missed and the due date passes, `liquidate(requestId)` can be called to mark default and perform bookkeeping.
+
+## Off‑chain integration (backend)
+
+- The backend exposes HTTP endpoints used by the frontend and relayer, including `/merchant` routes for status, `/pocket` and `/credit` activity endpoints, and admin routes that call `blockMerchant` / `unblockMerchant` using the configured controller private key when that key is owner of the Vault.
+
+## Invariants
+
+- LTV math is enforced on‑chain by `availableCredit`
+- Borrowed amount is decreased only when loan closes or when liquidated
+- Merchant block/unblock is an owner‑only operation (backend ensures owner signing)
+- Pockets are single‑use and deterministic
 
 ---
 

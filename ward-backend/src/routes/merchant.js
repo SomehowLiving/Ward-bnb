@@ -60,6 +60,25 @@ router.post("/block", async (req, res) => {
   }
 });
 
+router.post("/flag", async (req, res) => {
+  try {
+    const { merchant } = req.body ?? {};
+    requireAddress(merchant, "merchant");
+
+    const vault = getVaultContract();
+    // This call uses the backend signer; it will flag using the backend address.
+    const tx = await vault.flagMerchant(merchant);
+    const receipt = await tx.wait();
+
+    res.json({ merchant, txHash: receipt.hash });
+  } catch (err) {
+    const status = err instanceof ValidationError ? 400 : 500;
+    res.status(status).json({
+      error: err instanceof ValidationError ? err.message : decodeEthersError(err)
+    });
+  }
+});
+
 router.post("/unblock", async (req, res) => {
   try {
     const { merchant } = req.body ?? {};

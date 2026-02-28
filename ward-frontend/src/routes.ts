@@ -8,7 +8,10 @@ export const API = {
     request: (requestId: string) => `/api/credit/request/${requestId}`
   },
   merchant: {
-    get: (merchant: string) => `/api/merchant/${merchant}`
+    get: (merchant: string) => `/api/merchant/${merchant}`,
+    flag: "/api/merchant/flag",
+    block: "/api/merchant/block",
+    unblock: "/api/merchant/unblock"
   },
   activity: {
     credits: (user: string) => `/api/activity/credits/${user}`,

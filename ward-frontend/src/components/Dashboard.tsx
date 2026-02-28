@@ -24,7 +24,10 @@ import {
   relayPocketExecution,
   repayOnVault,
   requestCreditOnVault,
-  signExecIntent
+  signExecIntent,
+  flagMerchant,
+  blockMerchant,
+  unblockMerchant
 } from "../api";
 
 declare global {
@@ -370,6 +373,41 @@ export default function Dashboard() {
     setStatus("Repayment confirmed.");
   }
 
+  async function onFlag() {
+    if (!merchantAddress || !ethers.isAddress(merchantAddress)) return;
+    setError("");
+    setStatus("Flagging merchant...");
+    const result = await flagMerchant(merchantAddress);
+    setStatus(`Merchant flagged (tx ${result.txHash})`);
+    await refreshMerchantStatus(merchantAddress);
+  }
+
+  async function onBlock() {
+    if (!merchantAddress || !ethers.isAddress(merchantAddress)) return;
+    setError("");
+    setStatus("Blocking merchant...");
+    try {
+      const result = await blockMerchant(merchantAddress);
+      setStatus(`Merchant blocked (tx ${result.txHash})`);
+    } catch (err: any) {
+      setError(err?.message || "Block failed");
+    }
+    await refreshMerchantStatus(merchantAddress);
+  }
+
+  async function onUnblock() {
+    if (!merchantAddress || !ethers.isAddress(merchantAddress)) return;
+    setError("");
+    setStatus("Unblocking merchant...");
+    try {
+      const result = await unblockMerchant(merchantAddress);
+      setStatus(`Merchant unblocked (tx ${result.txHash})`);
+    } catch (err: any) {
+      setError(err?.message || "Unblock failed");
+    }
+    await refreshMerchantStatus(merchantAddress);
+  }
+
   const safeRun = (fn: () => Promise<void>) => fn().catch((err: any) => {
     setError(err?.message || "Action failed");
     setStatus("");
@@ -429,6 +467,30 @@ export default function Dashboard() {
         <div><strong>Request ID:</strong> {activeRequest?.requestId ?? "-"}</div>
         <div><strong>Pocket:</strong> {activeRequest?.pocket ?? "-"}</div>
         <div><strong>Next Due:</strong> {activeRequest ? formatDateTime(BigInt(activeRequest.nextDueDate)) : "-"}</div>
+      </section>
+
+      <section className="card">
+        <h2>Merchant Governance</h2>
+        <div>
+          <button
+            onClick={() => safeRun(onFlag)}
+            disabled={!signer || !ethers.isAddress(merchantAddress)}
+          >
+            Flag Merchant
+          </button>
+          <button
+            onClick={() => safeRun(onBlock)}
+            disabled={!signer || !ethers.isAddress(merchantAddress)}
+          >
+            Block Merchant (admin)
+          </button>
+          <button
+            onClick={() => safeRun(onUnblock)}
+            disabled={!signer || !ethers.isAddress(merchantAddress)}
+          >
+            Unblock Merchant (admin)
+          </button>
+        </div>
       </section>
 
       <section className="card">
