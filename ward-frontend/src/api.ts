@@ -49,6 +49,17 @@ export type MerchantStatus = {
   blocked: boolean;
 };
 
+export type FlagResult = {
+  merchant: string;
+  txHash: string;
+};
+
+export type BlockResult = {
+  merchant: string;
+  blocked: boolean;
+  txHash: string;
+};
+
 export type ActivityCredit = {
   requestId: string;
   user: string;
@@ -277,5 +288,39 @@ export async function getMerchantActivity(merchant: string) {
   const res = await fetch(API.activity.merchant(merchant));
   const data = await res.json();
   if (!res.ok) throw new Error(extractError(data, "Failed to fetch merchant activity"));
+  return data;
+}
+
+// user-facing governance actions
+export async function flagMerchant(merchant: string): Promise<FlagResult> {
+  const res = await fetch(API.merchant.flag, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merchant })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to flag merchant"));
+  return data;
+}
+
+export async function blockMerchant(merchant: string): Promise<BlockResult> {
+  const res = await fetch(API.merchant.block, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merchant })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to block merchant"));
+  return data;
+}
+
+export async function unblockMerchant(merchant: string): Promise<BlockResult> {
+  const res = await fetch(API.merchant.unblock, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merchant })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(extractError(data, "Failed to unblock merchant"));
   return data;
 }

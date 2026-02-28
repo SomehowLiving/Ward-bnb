@@ -1,339 +1,45 @@
 # EXECUTION_FLOW.md — Ward
+## 1. User-visible flow 
 
-## Purpose of This Document
+The `ward-frontend` implements a dashboard and governance controls that map to the on‑chain and backend routes in this repository. Key user steps:
 
-This document provides a **complete end-to-end execution walkthrough** of Ward.
+1. Connect wallet (BSC Testnet)
+2. Deposit BNB via `CollateralVault.deposit()` using the Deposit card
+3. Enter merchant address and "Check Merchant" to call backend `/merchant/:address` (reads `merchantFlagCount` and `merchantBlocked` from the Vault)
+4. Request credit (`requestCredit` on the Vault) — this TX deploys a pocket and funds it; the UI captures the `CreditRequested` event (pocket address and next due date)
+5. User signs an EIP‑712 Exec intent for the pocket (off‑chain signature)
+6. Relayer calls backend `POST /pocket/execute` (or equivalent) which calls `PocketController.executeFromPocket(...)` — the pocket executes exactly one call
+7. UI reflects execution results and activity (pocket creation, execution events, repayments)
 
-It explains, in order:
+## 2. Backend (off‑chain) alignment
 
-1. What the **user experiences**
-2. What happens in the **backend (off-chain)**
-3. What happens **on-chain (contracts)**
-4. How **failures are handled** and what Ward **guarantees by design**
+- The Express API (`ward-backend/src/routes`) provides:
+  - `/merchant/:address` — reads on‑chain `merchantFlagCount` and `merchantBlocked`
+  - `/merchant/flag`, `/merchant/block`, `/merchant/unblock` — flag uses backend signer; block/unblock require backend signer to be Vault owner
+  - `/pocket/execute` and other activity endpoints used to relay executions and index events
+- Backend derives deterministic pocket addresses (CREATE2) and provides nonces and signature validation helpers to the frontend
 
-This is the authoritative reference for understanding **how a risky interaction is safely executed**.
+## 3. On‑chain flow and guardrails
 
----
+1. `CollateralVault.requestCredit` performs checks and then calls `PocketController.createPocket` and funds it. The emitted `CreditRequested` is the canonical record.
+2. `PocketController.createPocket` (CREATE2) and `PocketController.executeFromPocket` are the only paths that lead to `Pocket.exec` being invoked.
+3. `Pocket.exec` verifies the EIP‑712 signature, checks nonce/expiry and executes exactly one target call.
+4. After execution, the pocket is marked used and logs are emitted; the controller/pocket provide token sweep and burn routes controlled by the controller where applicable.
 
-## 1. User-Visible Flow
+## 4. Failure handling and guarantees
 
-This section describes **exactly what the user sees and does**.
+- Pocket compromise is possible but loss is limited to the funded amount.
+- Backend classification/simulation failures do not affect on‑chain guarantees; they only affect UX guidance.
+- Admin operations in backend (block/unblock) are gated: `requireBackendOwner` ensures the backend signer matches the Vault owner before calling owner‑only methods.
 
-### 1.1 Initial State (Before Any Interaction)
+## 5. Mapping to code files
 
-* User has a normal EOA wallet (e.g. MetaMask)
-* User has deposited ETH into the PocketController
-* No pockets exist yet
-* No approvals exist anywhere
+- Frontend: `ward-frontend/src/components/Dashboard.tsx` — all user actions (deposit, request credit, flag, block, unblock, execute, repay)
+- API helpers: `ward-frontend/src/api.ts` — wraps backend endpoints and on‑chain contract calls
+- Backend routes: `ward-backend/src/routes/merchant.js`, `pocket.js`, `credit.js`, `activity.js` — these endpoints implement relayer and governance logic
+- Contracts: `contracts/src/CollateralVault.sol`, `PocketController.sol`, `Pocket.sol`, `PocketFactory.sol`
 
-The user’s wallet behaves normally.
-
----
-
-### 1.2 User Initiates a Risky Action
-
-Example:
-
-* User visits an airdrop site
-* User clicks **“Claim”**
-
-Ward frontend intercepts the action and displays:
-
-* Target contract
-* Risk status (pending)
-* “Claim safely with Ward”
-
-No blockchain transaction occurs yet.
-
----
-
-### 1.3 Risk Explanation Shown to User
-
-After backend analysis, the UI shows:
-
-* Risk tier (1–4)
-* Clear explanation (e.g. “Unverified contract”, “Simulation failed”)
-* Recommended action:
-
-  * Auto-proceed (Tier 2)
-  * Require confirmation (Tier 4)
-  * Warn strongly (Tier 3)
-
-The user always remains in control.
-
----
-
-### 1.4 User Authorization (Signature Only)
-
-If execution proceeds:
-
-* User is asked to **sign a message**, not send a transaction
-* Signature authorizes:
-
-  * A specific pocket address
-  * A specific contract
-  * A specific calldata
-  * Exactly once
-  * With expiry
-
-User **does not pay gas**.
-
-This is the **only moment the user grants authority**.
-
----
-
-### 1.5 Execution Happens Transparently
-
-From the user’s perspective:
-
-* UI shows “Executing safely…”
-* No wallet pop-ups
-* No approvals requested
-* No gas payment
-
-Outcome is shown clearly:
-
-* “Pocket drained — main wallet safe”
-* OR “Token received — isolated”
-* OR “Token transferred to main wallet”
-
----
-
-## 2. Backend (Off-Chain) Flow
-
-This section describes **everything that happens after the click, before on-chain execution**.
-
----
-
-### 2.1 Risk Classification
-
-Backend receives:
-
-* Chain ID
-* Target contract
-* Calldata
-
-Backend performs:
-
-* Static bytecode analysis
-* Known scam / blacklist lookup
-* Confidence scoring
-* Tier assignment (1–4)
-
-Result is **advisory only**.
-
-No state is changed.
-
----
-
-### 2.2 Simulation (If Required)
-
-Depending on tier:
-
-* Transfer simulation (`eth_call`)
-* Gas estimation
-* DEX sell simulation (forked chain)
-
-Simulations:
-
-* Never move funds
-* Are cached
-* Are rate-limited
-
-Results are attached to the execution context.
-
----
-
-### 2.3 Pocket Address Determination
-
-Backend derives:
-
-* Deterministic pocket address (CREATE2)
-* Nonce / epoch
-
-This address is shown to the user **before signing**.
-
----
-
-### 2.4 Intent Construction
-
-Backend prepares an **EIP-712 typed message** containing:
-
-* Pocket address
-* Target contract
-* Calldata hash
-* Nonce
-* Expiry
-* Chain ID
-
-Backend does **not** sign anything.
-
----
-
-### 2.5 Relayer Preparation
-
-After user signs:
-
-* Backend validates signature format
-* Forwards intent to relayer
-* Relayer queues execution
-
-Relayer cannot modify intent.
-
----
-
-## 3. On-Chain / Contract-Level Flow
-
-This section describes **authoritative execution on the blockchain**.
-
----
-
-### 3.1 Pocket Creation (Lazy)
-
-Relayer submits a transaction calling:
-
-```
-PocketController.createPocket(user, nonce)
-```
-
-Controller:
-
-* Deploys pocket via CREATE2
-* Funds pocket with fixed ETH reserve
-* Records ownership
-* Emits `PocketCreated`
-
-No risky code has run yet.
-
----
-
-### 3.2 Execution Routing
-
-Relayer submits:
-
-```
-PocketController.executeFromPocket(
-  pocket,
-  target,
-  calldata,
-  signature,
-  nonce,
-  expiry
-)
-```
-
-Controller:
-
-* Verifies pocket exists
-* Verifies pocket unused
-* Forwards call to pocket
-
----
-
-### 3.3 Pocket Execution (Isolation Boundary)
-
-Inside `Pocket.exec(...)`:
-
-Checks:
-
-* Signature recovers owner
-* Nonce unused
-* Not expired
-* Pocket not already used
-
-Then:
-
-```
-target.call(calldata)
-```
-
-Effects:
-
-* All state changes occur **inside the pocket**
-* Any malicious behavior is confined
-
-After execution:
-
-* Pocket is marked as used
-* Pocket cannot execute again
-
----
-
-### 3.4 Post-Execution Asset Handling
-
-One of four outcomes occurs:
-
-#### Case A — Pocket Drained
-
-* Pocket balance becomes zero
-* Pocket marked `COMPROMISED`
-* No further actions possible
-
-#### Case B — Explicitly Safe Token (Tier 2)
-
-* Controller auto-sweeps token
-* Fee calculated on-chain
-* Remainder sent to main wallet
-
-#### Case C — Provisionally Safe Token (Tier 4)
-
-* Assets remain in pocket
-* User must explicitly confirm sweep
-
-#### Case D — Unsafe Token (Tier 3)
-
-* Assets remain isolated
-* User may force withdraw or abandon
-
-No assets ever move silently.
-
----
-
-## 4. Failure Paths and Guarantees
-
-This section defines **what can go wrong and what cannot happen**.
-
----
-
-### 4.1 Backend Failure
-
-* No funds at risk
-* Execution delayed
-* User can retry later
-* Signed intents remain valid until expiry
-
----
-
-### 4.2 Relayer Failure
-
-* No custody of funds
-* User can submit same intent to another relayer
-* No loss possible
-
----
-
-### 4.3 Pocket Compromise
-
-* Loss limited to pocket balance
-* Main wallet untouched
-* Other pockets unaffected
-
-This is an **expected and acceptable failure mode**.
-
----
-
-### 4.4 Controller Emergency Pause
-
-* New executions halted
-* Existing pockets cannot execute again
-* No retroactive damage possible
-
----
-
-## 5. System Guarantees (By Design)
-
-Ward **guarantees**:
-
+This file (and the codebase) are aligned: UI actions call API helpers, API calls backend routes, backend calls Vault/Controller, and contracts emit events which backend indexes for the UI.
 * Main wallet never executes risky code
 * Main wallet never grants approvals
 * Each pocket executes at most once
